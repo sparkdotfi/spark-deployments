@@ -1,0 +1,53 @@
+{
+  "_info": "Spark Prime Vault Mainnet deployment.",
+
+  "chainId": 1,
+  "defaultPAUAssembler": "0xb2468FCc87E3BE45Bfa521e567731375887BF8e2",
+
+  "spPrime": {
+    "savingsVaultV2": "0x28B3a8fb53B741A8Fd78c0fb9A6B2393d896a43d",
+    "name": "Spark Prime USDC",
+    "symbol": "spPrime",
+    "admin": "0xC758519Ace14E884fdbA9ccE25F2DbE81b7e136f",
+    "minimumDeposit": 1000000000000000000,
+    "minimumDepositCancellation": 1000000000000000000,
+    "minimumRedeem": 1000000000000000000
+  },
+
+  "spPrimePAU": {
+    "admins": [
+      "0xC758519Ace14E884fdbA9ccE25F2DbE81b7e136f"
+    ],
+    "relayers": [
+      "0x8a25A24EDE9482C4Fc0738F99611BE58F1c839AB"
+    ],
+    "freezers": [
+      "0x90D8c80C028B4C09C0d8dcAab9bbB057F0513431"
+    ],
+    "grantors": [
+      "0x4B61A0E48dd1e300f64090C60F414c1aC6CbC514"
+    ],
+    "integrationIds": [
+      "CCTP_FACET",
+      "ERC4626_FACET"
+    ]
+  },
+
+  "flcPAU": {
+    "admins": [
+      "0xC758519Ace14E884fdbA9ccE25F2DbE81b7e136f"
+    ],
+    "relayers": [
+      "0x8a25A24EDE9482C4Fc0738F99611BE58F1c839AB"
+    ],
+    "freezers": [
+      "0x90D8c80C028B4C09C0d8dcAab9bbB057F0513431"
+    ],
+    "grantors": [
+      "0x4B61A0E48dd1e300f64090C60F414c1aC6CbC514"
+    ],
+    "integrationIds": [
+      "TRANSFER_ASSET_FACET"
+    ]
+  }
+}
