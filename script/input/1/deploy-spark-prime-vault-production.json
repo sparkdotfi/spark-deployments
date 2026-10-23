@@ -8,15 +8,24 @@
     "savingsVaultV2": "0x28B3a8fb53B741A8Fd78c0fb9A6B2393d896a43d",
     "name": "Spark Prime USDC",
     "symbol": "spPrime",
-    "admin": "0xC758519Ace14E884fdbA9ccE25F2DbE81b7e136f",
+    "admin": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
     "minimumDeposit": 1000000000000000000,
     "minimumDepositCancellation": 1000000000000000000,
-    "minimumRedeem": 1000000000000000000
+    "minimumRedeem": 1000000000000000000,
+    "minVSR": 1e27,
+    "maxVSR": 1e27,
+    "maxRedeemFeeRate": 1,
+    "pauserRole": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
+    "unpauserRole": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
+    "operatorRole": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
+    "redeemFeeSetterRole": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
+    "takerRole": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
+    "lossManagerRole": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38"
   },
 
   "spPrimePAU": {
     "admins": [
-      "0xC758519Ace14E884fdbA9ccE25F2DbE81b7e136f"
+      "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38"
     ],
     "relayers": [
       "0x8a25A24EDE9482C4Fc0738F99611BE58F1c839AB"
@@ -28,14 +37,50 @@
       "0x4B61A0E48dd1e300f64090C60F414c1aC6CbC514"
     ],
     "integrationIds": [
-      "CCTP_FACET",
-      "ERC4626_FACET"
+      "TRANSFER_ASSET_FACET",
+      "ERC4626_FACET",
+      "SPARK_VAULT_FACET"
+    ],
+    "rateLimits": [
+      {
+        "integrationId": "SPARK_VAULT_FACET",
+        "sparkVault": "spPrime",
+        "maxAmount": 1000000000000000000,
+        "slope": 0
+      },
+      {
+        "integrationId": "ERC4626_FACET",
+        "token": "0x28B3a8fb53B741A8Fd78c0fb9A6B2393d896a43d",
+        "asset": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+        "depositMaxAmount": 0,
+        "depositSlope": 0,
+        "withdrawMaxAmount": 0,
+        "withdrawSlope": 0,
+        "maxExchangeRate": 10
+      },
+      {
+        "integrationId": "TRANSFER_ASSET_FACET",
+        "asset": "0x28B3a8fb53B741A8Fd78c0fb9A6B2393d896a43d",
+        "destination": "spPrime",
+        "maxAmount": 1000000000000000000,
+        "slope": 0
+      },
+      {
+        "integrationId": "ERC4626_FACET",
+        "token": "0x28B3a8fb53B741A8Fd78c0fb9A6B2393d896a43d",
+        "asset": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+        "depositMaxAmount": 0,
+        "depositSlope": 0,
+        "withdrawMaxAmount": 0,
+        "withdrawSlope": 0,
+        "maxExchangeRate": 10
+      }
     ]
   },
 
   "flcPAU": {
     "admins": [
-      "0xC758519Ace14E884fdbA9ccE25F2DbE81b7e136f"
+      "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38"
     ],
     "relayers": [
       "0x8a25A24EDE9482C4Fc0738F99611BE58F1c839AB"
@@ -48,6 +93,27 @@
     ],
     "integrationIds": [
       "TRANSFER_ASSET_FACET"
+    ],
+    "rateLimits": [
+      {
+        "integrationId": "TRANSFER_ASSET_FACET",
+        "asset": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+        "destination": "spPrimePAUAlmProxy",
+        "maxAmount": 1000000000000000000,
+        "slope": 0
+      }
+    ]
+  },
+
+  "pas": {
+    "owner": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
+    "minDelay": 259200,
+    "coreCouncil": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
+    "cancellers": [
+      "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38"
+    ],
+    "pausers": [
+      "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38"
     ]
   }
 }
