@@ -2,7 +2,10 @@
   "_info": "Spark Prime Vault Mainnet deployment.",
 
   "chainId": 1,
-  "defaultPAUAssembler": "0xb2468FCc87E3BE45Bfa521e567731375887BF8e2",
+
+  "_pau": "Existing Spark PAU infrastructure. The factory binds new controllers to the Spark Beacon (0xd47230358AB6c52A0a988150Ac4Ab888FE8B7786); the allocator agent is the live spUSDC PAU AdministeredAgent, shared by both PAUs.",
+  "pauFactory": "0x60eB26db57bD058B6D742a1f6350A7FFeAb0681E",
+  "allocatorAgent": "0xD30faA074D023af8525750561beC2Aa181562866",
 
   "spPrime": {
     "savingsVaultV2": "0x28B3a8fb53B741A8Fd78c0fb9A6B2393d896a43d",
@@ -19,22 +22,13 @@
     "unpauserRole": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
     "operatorRole": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
     "redeemFeeSetterRole": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
-    "takerRole": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
     "lossManagerRole": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38"
   },
 
+  "_spPrimePAU": "Taker PAU. Its ALMProxy receives TAKER_ROLE on spPrime. Slopes are per day.",
   "spPrimePAU": {
     "admins": [
       "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38"
-    ],
-    "relayers": [
-      "0x8a25A24EDE9482C4Fc0738F99611BE58F1c839AB"
-    ],
-    "freezers": [
-      "0x90D8c80C028B4C09C0d8dcAab9bbB057F0513431"
-    ],
-    "grantors": [
-      "0x4B61A0E48dd1e300f64090C60F414c1aC6CbC514"
     ],
     "integrationIds": [
       "TRANSFER_ASSET_FACET",
@@ -64,32 +58,14 @@
         "destination": "spPrime",
         "maxAmount": 1000000000000000000,
         "slope": 0
-      },
-      {
-        "integrationId": "ERC4626_FACET",
-        "token": "0x28B3a8fb53B741A8Fd78c0fb9A6B2393d896a43d",
-        "asset": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-        "depositMaxAmount": 0,
-        "depositSlope": 0,
-        "withdrawMaxAmount": 0,
-        "withdrawSlope": 0,
-        "maxExchangeRate": 10
       }
     ]
   },
 
+  "_flcPAU": "First-loss capital PAU. Transfers USDC to the taker PAU's ALMProxy.",
   "flcPAU": {
     "admins": [
       "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38"
-    ],
-    "relayers": [
-      "0x8a25A24EDE9482C4Fc0738F99611BE58F1c839AB"
-    ],
-    "freezers": [
-      "0x90D8c80C028B4C09C0d8dcAab9bbB057F0513431"
-    ],
-    "grantors": [
-      "0x4B61A0E48dd1e300f64090C60F414c1aC6CbC514"
     ],
     "integrationIds": [
       "TRANSFER_ASSET_FACET"

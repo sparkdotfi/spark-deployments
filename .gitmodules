@@ -10,3 +10,13 @@
 [submodule "lib/pas"]
 	path = lib/pas
 	url = git@github.com:sky-ecosystem/pas
+[submodule "lib/diamond-pau"]
+	path = lib/diamond-pau
+	url = https://github.com/sky-ecosystem/diamond-pau
+	branch = dev
+[submodule "lib/pau-administered-agent"]
+	path = lib/pau-administered-agent
+	url = https://github.com/sky-ecosystem/pau-administered-agent.git
+[submodule "lib/spark-vaults-v2"]
+	path = lib/spark-vaults-v2
+	url = https://github.com/sparkdotfi/spark-vaults-v2
