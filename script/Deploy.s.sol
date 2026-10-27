@@ -1,23 +1,34 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.34;
 
-import { console2 }        from "lib/forge-std/src/console2.sol";
 import { Script, stdJson } from "lib/forge-std/src/Script.sol";
 
 import { ScriptTools } from "lib/dss-test/src/ScriptTools.sol";
-
-import { PASDeploy, PASInstance } from "lib/pas/deploy/PASDeploy.sol";
-import { PASInit }                from "lib/pas/deploy/PASInit.sol";
 
 import { ERC1967Proxy } from "lib/spark-prime-vault/lib/oz/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import { SparkPrimeVault } from "lib/spark-prime-vault/src/SparkPrimeVault.sol";
 
 interface IAccessControlsLike {
+
     function grantRole(bytes32 role, address account) external;
+
+    function revokeRole(bytes32 role, address account) external;
+
+}
+
+interface IALMProxyLike {
+
+    function CONTROLLER() external view returns (bytes32);
+
+    function grantRole(bytes32 role, address account) external;
+
 }
 
 interface IControllerLike {
+
+    function updateIntegrations(bytes32[] calldata ids) external;
+
     function erc4626_getDepositRateLimitKey(address token, address asset)
     external
     pure
@@ -37,59 +48,366 @@ interface IERC20Like {
 }
 
 interface IRateLimitsLike {
+    function CONTROLLER() external view returns (bytes32);
+
+    function grantRole(bytes32 role, address account) external;
+
     function setRateLimitData(bytes32 key, uint256 maxAmount, uint256 slope) external;
 }
 
-interface IDefaultPAUAssembler {
+interface IPAUFactoryLike {
 
-    struct AdminConfig {
-        address[] accessControlAdmins;
-        address[] proxyAdmins;
-        address[] rateLimitsAdmins;
-    }
+    function deployAccessControls(address admin) external returns (address);
 
-    struct AdministeredAgentConfig {
-        address[] admins;
-        address[] actors;
-        address[] grantors;
-        address[] revokers;
-    }
+    function deployALMProxy(address admin) external returns (address);
 
-    function deploy(
-        bytes32[]                 memory integrationIds,
-        AdminConfig               memory adminConfig,
-        AdministeredAgentConfig[] memory allocatorAgentConfigs
-    )
-        external
-        returns (
-            address          proxy,
-            address          controller,
-            address          accessControls,
-            address          rateLimits,
-            address[] memory allocatorAgents
-        );
+    function deployController(address accessControls, address proxy, address rateLimits) external returns (address);
+
+    function deployRateLimits(address admin) external returns (address);
 
 }
 
 abstract contract DeploySparkPrimeVaultBase is Script {
 
-    using stdJson     for string;
-    using ScriptTools for string;
+    using stdJson for string;
+
+    struct VaultConfig {
+        address savingsVaultV2;
+        string  name;
+        string  symbol;
+        address admin;
+        uint256 minDeposit;
+        uint256 minDepositCancellation;
+        uint256 minRedeem;
+        uint256 minVSR;
+        uint256 maxVSR;
+        uint256 maxRedeemFeeRate;
+        address pauser;
+        address unpauser;
+        address operator;
+        address redeemFeeSetter;
+        address lossManager;
+    }
+
+    struct PAUInstance {
+        address accessControls;
+        address almProxy;
+        address controller;
+        address rateLimits;
+    }
+
+    struct TransferAssetRateLimit {
+        address asset;
+        string  destination;
+        uint256 maxAmount;
+        uint256 slopePerDay;
+    }
+
+    struct ERC4626RateLimit {
+        string  token;
+        address asset;
+        uint256 depositMaxAmount;
+        uint256 depositSlopePerDay;
+        uint256 withdrawMaxAmount;
+        uint256 withdrawSlopePerDay;
+        uint256 maxExchangeRate;
+    }
+
+    struct SparkVaultRateLimit {
+        string  sparkVault;
+        uint256 maxAmount;
+        uint256 slopePerDay;
+    }
+
+    struct PAUConfig {
+        string                   name;
+        address                  admin;
+        bytes32[]                integrationIds;
+        TransferAssetRateLimit[] transferAssetRateLimits;
+        ERC4626RateLimit[]       erc4626RateLimits;
+        SparkVaultRateLimit[]    sparkVaultRateLimits;
+    }
+
+    struct Config {
+        uint256     chainId;
+        address     pauFactory;
+        address     allocatorAgent;
+        address     configurator;
+        VaultConfig vault;
+        PAUConfig[] paus;
+    }
+
+    struct DeployedInstance {
+        address       spPrimeImplementation;
+        address       spPrime;
+        PAUInstance[] paus;
+    }
 
     bytes32 internal constant DEFAULT_ADMIN_ROLE = 0x00;
 
-    IDefaultPAUAssembler defaultPAUAssembler;
+    function _deploy(Config memory cfg) internal returns (DeployedInstance memory deployed) {
+        require(block.chainid == cfg.chainId, "DeploySparkPrimeVaultBase/invalid-chain-id");
 
-    address internal spPrimeProxy;
-    address internal spPrimePAUAlmProxy;
+        // Step 1: Deploy the Spark Prime Vault with the deployer as temporary admin.
 
-    address[] internal admins;
-    address[] internal relayers;
-    address[] internal freezers;
-    address[] internal grantors;
+        deployed.spPrimeImplementation = address(new SparkPrimeVault());
 
-    address[] internal accessControls;
-    address[] internal rateLimits;
+        deployed.spPrime = address(new ERC1967Proxy(
+            deployed.spPrimeImplementation,
+            abi.encodeCall(
+                SparkPrimeVault.initialize,
+                (
+                    cfg.vault.savingsVaultV2,
+                    cfg.vault.name,
+                    cfg.vault.symbol,
+                    msg.sender,
+                    cfg.vault.minDeposit,
+                    cfg.vault.minDepositCancellation,
+                    cfg.vault.minRedeem
+                )
+            )
+        ));
+
+        // Step 2: Deploy PAU stacks against the existing factory with deployer as temporary admin
+        //         of AccessControls, RateLimits, and ALMProxy.
+
+        deployed.paus = new PAUInstance[](cfg.paus.length);
+
+        for (uint16 i; i < cfg.paus.length; ++i) {
+            deployed.paus[i] = _deployPAU(cfg.pauFactory, msg.sender);
+        }
+
+        // Step 3: Configure the Spark Prime Vault.
+
+        _configureVault(cfg.vault, deployed);
+
+        // Step 4: Configure the PAU stacks.
+
+        for (uint16 i; i < cfg.paus.length; ++i) {
+            _configurePAU(cfg.paus[i], deployed, cfg.allocatorAgent, cfg.configurator, i);
+        }
+
+        // Step 5: Hand admin rights over and strip the deployer.
+
+        // Vault admin handoff.
+
+        IAccessControlsLike(deployed.spPrime).grantRole(DEFAULT_ADMIN_ROLE,  cfg.vault.admin);
+        IAccessControlsLike(deployed.spPrime).revokeRole(DEFAULT_ADMIN_ROLE, msg.sender);
+
+        // PAUs admin handoff.
+
+        for (uint16 i; i < cfg.paus.length; ++i) {
+            IAccessControlsLike(deployed.paus[i].accessControls).grantRole(DEFAULT_ADMIN_ROLE, cfg.paus[i].admin);
+            IAccessControlsLike(deployed.paus[i].rateLimits).grantRole(DEFAULT_ADMIN_ROLE,     cfg.paus[i].admin);
+            IAccessControlsLike(deployed.paus[i].almProxy).grantRole(DEFAULT_ADMIN_ROLE,       cfg.paus[i].admin);
+
+            IAccessControlsLike(deployed.paus[i].accessControls).revokeRole(DEFAULT_ADMIN_ROLE, msg.sender);
+            IAccessControlsLike(deployed.paus[i].rateLimits).revokeRole(DEFAULT_ADMIN_ROLE,     msg.sender);
+            IAccessControlsLike(deployed.paus[i].almProxy).revokeRole(DEFAULT_ADMIN_ROLE,       msg.sender);
+        }
+    }
+
+    function _deployPAU(address pauFactory_, address admin_) internal returns (PAUInstance memory deployed) {
+        IPAUFactoryLike pauFactory = IPAUFactoryLike(pauFactory_);
+
+        deployed.accessControls = pauFactory.deployAccessControls(admin_);
+        deployed.almProxy       = pauFactory.deployALMProxy(admin_);
+        deployed.rateLimits     = pauFactory.deployRateLimits(admin_);
+        deployed.controller     = pauFactory.deployController(deployed.accessControls, deployed.almProxy, deployed.rateLimits);
+    }
+
+    function _configureVault(VaultConfig memory cfg, DeployedInstance memory deployed) internal {
+        SparkPrimeVault vault = SparkPrimeVault(deployed.spPrime);
+
+        vault.setVSRBounds(cfg.minVSR, cfg.maxVSR);
+        vault.setMaxRedeemFeeRate(cfg.maxRedeemFeeRate);
+
+        vault.grantRole(vault.PAUSER_ROLE(),            cfg.pauser);
+        vault.grantRole(vault.UNPAUSER_ROLE(),          cfg.unpauser);
+        vault.grantRole(vault.OPERATOR_ROLE(),          cfg.operator);
+        vault.grantRole(vault.REDEEM_FEE_SETTER_ROLE(), cfg.redeemFeeSetter);
+        vault.grantRole(vault.LOSS_MANAGER_ROLE(),      cfg.lossManager);
+
+        // The taker PAU pulls savings shares out of the vault through its ALMProxy.
+        // Here we assume the first PAU is the taker PAU.
+        vault.grantRole(vault.TAKER_ROLE(), deployed.paus[0].almProxy);
+    }
+
+    function _configurePAU(PAUConfig memory cfg, DeployedInstance memory deployed, address allocatorAgent_, address configurator_, uint16 index) internal {
+        IControllerLike controller = IControllerLike(deployed.paus[index].controller);
+
+        IALMProxyLike(deployed.paus[index].almProxy).grantRole(IALMProxyLike(deployed.paus[index].almProxy).CONTROLLER(),         deployed.paus[index].controller);
+        IRateLimitsLike(deployed.paus[index].rateLimits).grantRole(IRateLimitsLike(deployed.paus[index].rateLimits).CONTROLLER(), deployed.paus[index].controller);
+
+        controller.updateIntegrations(cfg.integrationIds);
+
+        IAccessControlsLike(deployed.paus[index].accessControls).grantRole(keccak256("ALLOCATOR_ROLE"), allocatorAgent_);
+        IAccessControlsLike(deployed.paus[index].accessControls).grantRole(DEFAULT_ADMIN_ROLE,          configurator_);
+        IAccessControlsLike(deployed.paus[index].rateLimits).grantRole(DEFAULT_ADMIN_ROLE,              configurator_);
+
+        // Rate limits.
+        for (uint256 i; i < cfg.transferAssetRateLimits.length; ++i) {
+            TransferAssetRateLimit memory rl = cfg.transferAssetRateLimits[i];
+
+            IRateLimitsLike(deployed.paus[index].rateLimits).setRateLimitData(
+                controller.transferAsset_getTransferRateLimitKey(rl.asset, _resolve(rl.destination, deployed)),
+                rl.maxAmount,
+                rl.slopePerDay / 1 days
+            );
+        }
+
+        for (uint256 i; i < cfg.erc4626RateLimits.length; ++i) {
+            ERC4626RateLimit memory rl = cfg.erc4626RateLimits[i];
+
+            address token = _resolve(rl.token, deployed);
+
+            IRateLimitsLike(deployed.paus[index].rateLimits).setRateLimitData(
+                controller.erc4626_getDepositRateLimitKey(token, rl.asset),
+                rl.depositMaxAmount,
+                rl.depositSlopePerDay / 1 days
+            );
+            IRateLimitsLike(deployed.paus[index].rateLimits).setRateLimitData(
+                controller.erc4626_getWithdrawRateLimitKey(token),
+                rl.withdrawMaxAmount,
+                rl.withdrawSlopePerDay / 1 days
+            );
+
+            controller.erc4626_setMaxExchangeRate(
+                token,
+                10 ** IERC20Like(token).decimals(),
+                rl.maxExchangeRate * 10 ** IERC20Like(rl.asset).decimals()
+            );
+        }
+
+        for (uint256 i; i < cfg.sparkVaultRateLimits.length; ++i) {
+            SparkVaultRateLimit memory rl = cfg.sparkVaultRateLimits[i];
+
+            IRateLimitsLike(deployed.paus[index].rateLimits).setRateLimitData(
+                controller.sparkVault_getTakeRateLimitKey(_resolve(rl.sparkVault, deployed)),
+                rl.maxAmount,
+                rl.slopePerDay / 1 days
+            );
+        }
+    }
+
+    function _resolve(string memory str, DeployedInstance memory deployed) internal pure returns (address) {
+        if (_eq(str, "spPrime"))            return deployed.spPrime;
+        if (_eq(str, "spPrimePAUAlmProxy")) return deployed.paus[0].almProxy;
+
+        return vm.parseAddress(str);
+    }
+
+    function _eq(string memory a, string memory b) internal pure returns (bool) {
+        return keccak256(bytes(a)) == keccak256(bytes(b));
+    }
+
+    function _length(string memory config, string memory key) internal view returns (uint256 length) {
+        while (config.keyExists(_index(key, length))) ++length;
+    }
+
+    function _index(string memory key, uint256 index) internal pure returns (string memory) {
+        return string(abi.encodePacked(key, "[", vm.toString(index), "]"));
+    }
+
+    function _parseConfig(string memory config, string[] memory paus) internal view returns (Config memory cfg) {
+        cfg.chainId        = config.readUint(".chainId");
+        cfg.pauFactory     = config.readAddress(".pauFactory");
+        cfg.allocatorAgent = config.readAddress(".allocatorAgent");
+        cfg.configurator   = config.readAddress(".configurator");
+
+        cfg.vault = VaultConfig({
+            savingsVaultV2         : config.readAddress(".spPrime.savingsVaultV2"),
+            name                   : config.readString(".spPrime.name"),
+            symbol                 : config.readString(".spPrime.symbol"),
+            admin                  : config.readAddress(".spPrime.admin"),
+            minDeposit             : config.readUint(".spPrime.minimumDeposit"),
+            minDepositCancellation : config.readUint(".spPrime.minimumDepositCancellation"),
+            minRedeem              : config.readUint(".spPrime.minimumRedeem"),
+            minVSR                 : config.readUint(".spPrime.minVSR"),
+            maxVSR                 : config.readUint(".spPrime.maxVSR"),
+            maxRedeemFeeRate       : config.readUint(".spPrime.maxRedeemFeeRate"),
+            pauser                 : config.readAddress(".spPrime.pauser"),
+            unpauser               : config.readAddress(".spPrime.unpauser"),
+            operator               : config.readAddress(".spPrime.operator"),
+            redeemFeeSetter        : config.readAddress(".spPrime.redeemFeeSetter"),
+            lossManager            : config.readAddress(".spPrime.lossManager")
+        });
+
+        cfg.paus = new PAUConfig[](paus.length);
+
+        for (uint16 i; i < paus.length; ++i) {
+            string[] memory integrationIds = config.readStringArray(string(abi.encodePacked(".", paus[i], ".integrationIds")));
+
+            bytes32[] memory integrationIdsBytes = new bytes32[](integrationIds.length);
+
+            for (uint16 j; j < integrationIds.length; ++j) {
+                integrationIdsBytes[j] = bytes32(abi.encodePacked(integrationIds[j]));
+            }
+
+            string memory key = string(abi.encodePacked(".", paus[i], ".transferAssetRateLimits"));
+
+            TransferAssetRateLimit[] memory transferAssetRateLimitsStructs = new TransferAssetRateLimit[](_length(config, key));
+
+            for (uint256 j; j < transferAssetRateLimitsStructs.length; ++j) {
+                string memory entry = _index(key, j);
+
+                transferAssetRateLimitsStructs[j] = TransferAssetRateLimit({
+                    asset       : config.readAddress(string(abi.encodePacked(entry, ".asset"))),
+                    destination : config.readString(string(abi.encodePacked(entry, ".destination"))),
+                    maxAmount   : config.readUint(string(abi.encodePacked(entry, ".maxAmount"))),
+                    slopePerDay : config.readUint(string(abi.encodePacked(entry, ".slope")))
+                });
+            }
+
+            key = string(abi.encodePacked(".", paus[i], ".erc4626RateLimits"));
+
+            ERC4626RateLimit[] memory erc4626RateLimitsStructs = new ERC4626RateLimit[](_length(config, key));
+
+            for (uint256 j; j < erc4626RateLimitsStructs.length; ++j) {
+                string memory entry = _index(key, j);
+
+                erc4626RateLimitsStructs[j] = ERC4626RateLimit({
+                    token               : config.readString(string(abi.encodePacked(entry, ".token"))),
+                    asset               : config.readAddress(string(abi.encodePacked(entry, ".asset"))),
+                    depositMaxAmount    : config.readUint(string(abi.encodePacked(entry, ".depositMaxAmount"))),
+                    depositSlopePerDay  : config.readUint(string(abi.encodePacked(entry, ".depositSlope"))),
+                    withdrawMaxAmount   : config.readUint(string(abi.encodePacked(entry, ".withdrawMaxAmount"))),
+                    withdrawSlopePerDay : config.readUint(string(abi.encodePacked(entry, ".withdrawSlope"))),
+                    maxExchangeRate     : config.readUint(string(abi.encodePacked(entry, ".maxExchangeRate")))
+                });
+            }
+
+            key = string(abi.encodePacked(".", paus[i], ".sparkVaultRateLimits"));
+
+            SparkVaultRateLimit[] memory sparkVaultRateLimitsStructs = new SparkVaultRateLimit[](_length(config, key));
+
+            for (uint256 j; j < sparkVaultRateLimitsStructs.length; ++j) {
+                string memory entry = _index(key, j);
+
+                sparkVaultRateLimitsStructs[j] = SparkVaultRateLimit({
+                    sparkVault  : config.readString(string(abi.encodePacked(entry, ".sparkVault"))),
+                    maxAmount   : config.readUint(string(abi.encodePacked(entry, ".maxAmount"))),
+                    slopePerDay : config.readUint(string(abi.encodePacked(entry, ".slope")))
+                });
+            }
+
+            cfg.paus[i] = PAUConfig({
+                name                    : paus[i],
+                admin                   : config.readAddress(string(abi.encodePacked(".", paus[i], ".admin"))),
+                integrationIds          : integrationIdsBytes,
+                transferAssetRateLimits : transferAssetRateLimitsStructs,
+                erc4626RateLimits       : erc4626RateLimitsStructs,
+                sparkVaultRateLimits    : sparkVaultRateLimitsStructs
+            });
+        }
+    }
+
+}
+
+abstract contract DeploySparkPrimeVault is DeploySparkPrimeVaultBase {
+
+    using stdJson     for string;
+    using ScriptTools for string;
 
     string[] internal paus;
 
@@ -108,244 +426,26 @@ abstract contract DeploySparkPrimeVaultBase is Script {
 
         require(block.chainid == config.readUint(".chainId"), "DeploySparkPrimeVault/Invalid chain ID");
 
-        defaultPAUAssembler = IDefaultPAUAssembler(config.readAddress(".defaultPAUAssembler"));
-
-        // Deploy Spark Prime Vault and configure.
-
         vm.startBroadcast();
 
-        address spPrimeImplementation = address(new SparkPrimeVault());
-
-        SparkPrimeVault spPrime = SparkPrimeVault(
-            address(new ERC1967Proxy(
-                spPrimeImplementation,
-                abi.encodeCall(
-                    SparkPrimeVault.initialize,
-                    (
-                        config.readAddress(".spPrime.savingsVaultV2"),
-                        config.readString(".spPrime.name"),
-                        config.readString(".spPrime.symbol"),
-                        config.readAddress(".spPrime.admin"),
-                        config.readUint(".spPrime.minimumDeposit"),
-                        config.readUint(".spPrime.minimumDepositCancellation"),
-                        config.readUint(".spPrime.minimumRedeem")
-                    )
-                )
-            ))
-        );
-
-        spPrime.setVSRBounds(config.readUint(".spPrime.minVSR"), config.readUint(".spPrime.maxVSR"));
-        spPrime.setMaxRedeemFeeRate(config.readUint(".spPrime.maxRedeemFeeRate"));
-
-        spPrime.grantRole(spPrime.PAUSER_ROLE(),            config.readAddress(".spPrime.pauserRole"));
-        spPrime.grantRole(spPrime.UNPAUSER_ROLE(),          config.readAddress(".spPrime.unpauserRole"));
-        spPrime.grantRole(spPrime.OPERATOR_ROLE(),          config.readAddress(".spPrime.operatorRole"));
-        spPrime.grantRole(spPrime.REDEEM_FEE_SETTER_ROLE(), config.readAddress(".spPrime.redeemFeeSetterRole"));
-        spPrime.grantRole(spPrime.TAKER_ROLE(),             config.readAddress(".spPrime.takerRole"));
-        spPrime.grantRole(spPrime.LOSS_MANAGER_ROLE(),      config.readAddress(".spPrime.lossManagerRole"));
+        DeployedInstance memory deployed = _deploy(_parseConfig(config, paus));
 
         vm.stopBroadcast();
 
-        spPrimeProxy = address(spPrime);
+        ScriptTools.exportContract(fileSlug, string(abi.encodePacked("spPrime.proxy")),          deployed.spPrime);
+        ScriptTools.exportContract(fileSlug, string(abi.encodePacked("spPrime.implementation")), deployed.spPrimeImplementation);
 
-        console2.log("Deployed Spark Prime Vault");
-
-        ScriptTools.exportContract(fileSlug, string(abi.encodePacked("spPrime.proxy")), address(spPrime));
-        ScriptTools.exportContract(fileSlug, string(abi.encodePacked("spPrime.implementation")), address(spPrimeImplementation));
-
-        // Deploy PAU's
-
-        for (uint16 i; i < paus.length; ++i) {
-            admins   = config.readAddressArray(string(abi.encodePacked(".", paus[i], ".admins")));
-            relayers = config.readAddressArray(string(abi.encodePacked(".", paus[i], ".relayers")));
-            freezers = config.readAddressArray(string(abi.encodePacked(".", paus[i], ".freezers")));
-            grantors = config.readAddressArray(string(abi.encodePacked(".", paus[i], ".grantors")));
-
-            string[] memory integrationIds = config.readStringArray(string(abi.encodePacked(".",  paus[i], ".integrationIds")));
-
-            vm.startBroadcast();
-
-            // Step 1: Prepare configs.
-
-            bytes32[] memory integrationIdsBytes = new bytes32[](integrationIds.length);
-            for (uint16 j; j < integrationIds.length; ++j) {
-                integrationIdsBytes[j] = bytes32(abi.encodePacked(integrationIds[j]));
-            }
-
-            IDefaultPAUAssembler.AdminConfig               memory adminConfig  = _getAdminConfig(admins, admins, admins);
-            IDefaultPAUAssembler.AdministeredAgentConfig[] memory agentConfigs = _getAgentConfigs(admins, relayers, freezers, grantors);
-
-            // Step 2: Deploy PAU with default PAUAssembler.
-
-            (
-                address          proxy_,
-                address          controller_,
-                address          accessControls_,
-                address          rateLimits_,
-                address[] memory allocatorAgents_
-            ) = defaultPAUAssembler.deploy(integrationIdsBytes, adminConfig, agentConfigs);
-
-            if (_eq(paus[i], "spPrimePAU")) {
-                spPrimePAUAlmProxy = proxy_;
-            }
-
-            _setRateLimits(config, paus[i], controller_, rateLimits_);
-
-            accessControls.push(accessControls_);
-            rateLimits.push(rateLimits_);
-
-            vm.stopBroadcast();
-
-            console2.log("Deployed", paus[i], "PAU with default PAUAssembler");
-
-            ScriptTools.exportContract(fileSlug, string(abi.encodePacked(paus[i], ".proxy")),          address(proxy_));
-            ScriptTools.exportContract(fileSlug, string(abi.encodePacked(paus[i], ".controller")),     address(controller_));
-            ScriptTools.exportContract(fileSlug, string(abi.encodePacked(paus[i], ".accessControls")), address(accessControls_));
-            ScriptTools.exportContract(fileSlug, string(abi.encodePacked(paus[i], ".rateLimits")),     address(rateLimits_));
-            ScriptTools.exportContract(fileSlug, string(abi.encodePacked(paus[i], ".allocatorAgent")), allocatorAgents_[0]);
+        for (uint16 i; i < deployed.paus.length; ++i) {
+            ScriptTools.exportContract(fileSlug, string(abi.encodePacked(paus[i], ".proxy")),          deployed.paus[i].almProxy);
+            ScriptTools.exportContract(fileSlug, string(abi.encodePacked(paus[i], ".controller")),     deployed.paus[i].controller);
+            ScriptTools.exportContract(fileSlug, string(abi.encodePacked(paus[i], ".accessControls")), deployed.paus[i].accessControls);
+            ScriptTools.exportContract(fileSlug, string(abi.encodePacked(paus[i], ".rateLimits")),     deployed.paus[i].rateLimits);
         }
-
-        // Deploy PAS
-
-        vm.startBroadcast();
-
-        PASInstance memory pas = PASDeploy.deploy({
-            deployer : msg.sender,
-            owner    : config.readAddress(".pas.owner"),
-            minDelay : config.readUint(".pas.minDelay")
-        });
-
-        PASInit.init({
-            pasInstance : pas,
-            minDelay    : config.readUint(".pas.minDelay"),
-            coreCouncil : config.readAddress(".pas.coreCouncil"),
-            cancellers  : config.readAddressArray(".pas.cancellers"),
-            pausers     : config.readAddressArray(".pas.pausers")
-        });
-
-        for (uint16 i; i < paus.length; ++i) {
-            IAccessControlsLike(accessControls[i]).grantRole(DEFAULT_ADMIN_ROLE, pas.configurator);
-            IAccessControlsLike(rateLimits[i]).grantRole(DEFAULT_ADMIN_ROLE,     pas.configurator);
-        }
-
-        vm.stopBroadcast();
-
-        ScriptTools.exportContract(fileSlug, string(abi.encodePacked("pas.beamState")),    address(pas.beamState));
-        ScriptTools.exportContract(fileSlug, string(abi.encodePacked("pas.configurator")), address(pas.configurator));
-        ScriptTools.exportContract(fileSlug, string(abi.encodePacked("pas.timelock")),     address(pas.timelock));
     }
 
     /**********************************************************************************************/
     /*** Helper Functions                                                                       ***/
     /**********************************************************************************************/
-
-    function _getAdminConfig(
-        address[] memory accessControlAdmins,
-        address[] memory almProxyAdmins,
-        address[] memory rateLimitsAdmins
-    ) internal pure returns (IDefaultPAUAssembler.AdminConfig memory adminConfig) {
-        adminConfig = IDefaultPAUAssembler.AdminConfig({
-            accessControlAdmins : accessControlAdmins,
-            proxyAdmins         : almProxyAdmins,
-            rateLimitsAdmins    : rateLimitsAdmins
-        });
-    }
-
-    function _getAgentConfigs(
-        address[] memory agentAdmins,
-        address[] memory agentActors,
-        address[] memory agentGrantors,
-        address[] memory agentRevokers
-    ) internal pure returns (IDefaultPAUAssembler.AdministeredAgentConfig[] memory agentConfigs) {
-        agentConfigs = new IDefaultPAUAssembler.AdministeredAgentConfig[](1);  // Only one allocator agent is deployed.
-
-        agentConfigs[0] = IDefaultPAUAssembler.AdministeredAgentConfig({
-            admins   : agentAdmins,
-            actors   : agentActors,
-            grantors : agentGrantors,
-            revokers : agentRevokers
-        });
-    }
-
-    function _setRateLimits(string memory config, string memory pau, address controller_, address rateLimits_) internal {
-        for (uint256 i; vm.keyExistsJson(config, _rateLimitPath(pau, i)); ++i) {
-            string memory path          = _rateLimitPath(pau, i);
-            string memory integrationId = config.readString(string(abi.encodePacked(path, ".integrationId")));
-
-            if (_eq(integrationId, "TRANSFER_ASSET_FACET")) {
-                _setTransferAssetRateLimit(config, path, controller_, rateLimits_);
-            } else if (_eq(integrationId, "ERC4626_FACET")) {
-                _setERC4626RateLimits(config, path, controller_, rateLimits_);
-            } else if (_eq(integrationId, "SPARK_VAULT_FACET")) {
-                _setSparkVaultRateLimits(config, path, controller_, rateLimits_);
-            } else {
-                revert(string(abi.encodePacked("DeploySparkPrimeVault/Unknown rate limit: ", integrationId)));
-            }
-        }
-    }
-
-    function _setSparkVaultRateLimits(string memory config, string memory path, address controller_, address rateLimits_) internal {
-        address sparkVault = _readAddress(config, string(abi.encodePacked(path, ".sparkVault")));
-
-        IRateLimitsLike(rateLimits_).setRateLimitData(
-            IControllerLike(controller_).sparkVault_getTakeRateLimitKey(sparkVault),
-            config.readUint(string(abi.encodePacked(path, ".maxAmount"))),
-            uint256(config.readUint(string(abi.encodePacked(path, ".slope")))) / 1 days
-        );
-    }
-
-    function _setTransferAssetRateLimit(string memory config, string memory path, address controller_, address rateLimits_) internal {
-        address asset       = _readAddress(config, string(abi.encodePacked(path, ".asset")));
-        address destination = _readAddress(config, string(abi.encodePacked(path, ".destination")));
-
-        IRateLimitsLike(rateLimits_).setRateLimitData(
-            IControllerLike(controller_).transferAsset_getTransferRateLimitKey(asset, destination),
-            config.readUint(string(abi.encodePacked(path, ".maxAmount"))),
-            uint256(config.readUint(string(abi.encodePacked(path, ".slope")))) / 1 days
-        );
-    }
-
-    function _setERC4626RateLimits(string memory config, string memory path, address controller_, address rateLimits_) internal {
-        address token = _readAddress(config, string(abi.encodePacked(path, ".token")));
-        address asset = _readAddress(config, string(abi.encodePacked(path, ".asset")));
-
-        bytes32 depositKey  = IControllerLike(controller_).erc4626_getDepositRateLimitKey(token, asset);
-        bytes32 withdrawKey = IControllerLike(controller_).erc4626_getWithdrawRateLimitKey(asset);
-
-        IRateLimitsLike(rateLimits_).setRateLimitData(
-            depositKey,
-            config.readUint(string(abi.encodePacked(path, ".depositMaxAmount"))),
-            uint256(config.readUint(string(abi.encodePacked(path, ".depositSlope")))) / 1 days
-        );
-        IRateLimitsLike(rateLimits_).setRateLimitData(
-            withdrawKey,
-            config.readUint(string(abi.encodePacked(path, ".withdrawMaxAmount"))),
-            uint256(config.readUint(string(abi.encodePacked(path, ".withdrawSlope")))) / 1 days
-        );
-
-        IControllerLike(controller_).erc4626_setMaxExchangeRate(
-            token,
-            1 * 10 ** IERC20Like(token).decimals(),
-            config.readUint(string(abi.encodePacked(path, ".maxExchangeRate"))) * 10 ** IERC20Like(asset).decimals()
-        );
-    }
-
-    function _readAddress(string memory config, string memory key) internal view returns (address) {
-        string memory value = config.readString(key);
-
-        if (_eq(value, "spPrime")) return spPrimeProxy;
-        if (_eq(value, "spPrimePAUAlmProxy")) return spPrimePAUAlmProxy;
-
-        return vm.parseAddress(value);
-    }
-
-    function _rateLimitPath(string memory pau, uint256 i) internal pure returns (string memory) {
-        return string(abi.encodePacked(".", pau, ".rateLimits[", vm.toString(i), "]"));
-    }
-
-    function _eq(string memory a, string memory b) internal pure returns (bool) {
-        return keccak256(bytes(a)) == keccak256(bytes(b));
-    }
 
     function _setRHChainFork() internal {
         setChain("robinhood_chain", ChainData({
@@ -357,7 +457,7 @@ abstract contract DeploySparkPrimeVaultBase is Script {
 
 }
 
-contract DeploySparkPrimeVaultMainnet is DeploySparkPrimeVaultBase {
+contract DeploySparkPrimeVaultMainnet is DeploySparkPrimeVault {
 
     function run() public override {
         paus = new string[](2);

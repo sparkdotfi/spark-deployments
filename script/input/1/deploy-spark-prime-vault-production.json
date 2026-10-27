@@ -2,7 +2,9 @@
   "_info": "Spark Prime Vault Mainnet deployment.",
 
   "chainId": 1,
-  "defaultPAUAssembler": "0xb2468FCc87E3BE45Bfa521e567731375887BF8e2",
+  "pauFactory": "0x60eB26db57bD058B6D742a1f6350A7FFeAb0681E",
+  "allocatorAgent": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
+  "configurator": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
 
   "spPrime": {
     "savingsVaultV2": "0x28B3a8fb53B741A8Fd78c0fb9A6B2393d896a43d",
@@ -15,41 +17,29 @@
     "minVSR": 1e27,
     "maxVSR": 1e27,
     "maxRedeemFeeRate": 1,
-    "pauserRole": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
-    "unpauserRole": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
-    "operatorRole": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
-    "redeemFeeSetterRole": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
-    "takerRole": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
-    "lossManagerRole": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38"
+    "pauser": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
+    "unpauser": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
+    "operator": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
+    "redeemFeeSetter": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
+    "lossManager": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38"
   },
 
   "spPrimePAU": {
-    "admins": [
-      "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38"
-    ],
-    "relayers": [
-      "0x8a25A24EDE9482C4Fc0738F99611BE58F1c839AB"
-    ],
-    "freezers": [
-      "0x90D8c80C028B4C09C0d8dcAab9bbB057F0513431"
-    ],
-    "grantors": [
-      "0x4B61A0E48dd1e300f64090C60F414c1aC6CbC514"
-    ],
+    "admin": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
     "integrationIds": [
       "TRANSFER_ASSET_FACET",
       "ERC4626_FACET",
       "SPARK_VAULT_FACET"
     ],
-    "rateLimits": [
+    "sparkVaultRateLimits": [
       {
-        "integrationId": "SPARK_VAULT_FACET",
         "sparkVault": "spPrime",
         "maxAmount": 1000000000000000000,
         "slope": 0
-      },
+      }
+    ],
+    "erc4626RateLimits": [
       {
-        "integrationId": "ERC4626_FACET",
         "token": "0x28B3a8fb53B741A8Fd78c0fb9A6B2393d896a43d",
         "asset": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
         "depositMaxAmount": 0,
@@ -59,14 +49,6 @@
         "maxExchangeRate": 10
       },
       {
-        "integrationId": "TRANSFER_ASSET_FACET",
-        "asset": "0x28B3a8fb53B741A8Fd78c0fb9A6B2393d896a43d",
-        "destination": "spPrime",
-        "maxAmount": 1000000000000000000,
-        "slope": 0
-      },
-      {
-        "integrationId": "ERC4626_FACET",
         "token": "0x28B3a8fb53B741A8Fd78c0fb9A6B2393d896a43d",
         "asset": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
         "depositMaxAmount": 0,
@@ -75,28 +57,9 @@
         "withdrawSlope": 0,
         "maxExchangeRate": 10
       }
-    ]
-  },
-
-  "flcPAU": {
-    "admins": [
-      "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38"
     ],
-    "relayers": [
-      "0x8a25A24EDE9482C4Fc0738F99611BE58F1c839AB"
-    ],
-    "freezers": [
-      "0x90D8c80C028B4C09C0d8dcAab9bbB057F0513431"
-    ],
-    "grantors": [
-      "0x4B61A0E48dd1e300f64090C60F414c1aC6CbC514"
-    ],
-    "integrationIds": [
-      "TRANSFER_ASSET_FACET"
-    ],
-    "rateLimits": [
+    "transferAssetRateLimits": [
       {
-        "integrationId": "TRANSFER_ASSET_FACET",
         "asset": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
         "destination": "spPrimePAUAlmProxy",
         "maxAmount": 1000000000000000000,
@@ -105,15 +68,18 @@
     ]
   },
 
-  "pas": {
-    "owner": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
-    "minDelay": 259200,
-    "coreCouncil": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
-    "cancellers": [
-      "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38"
+  "flcPAU": {
+    "admin": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
+    "integrationIds": [
+      "TRANSFER_ASSET_FACET"
     ],
-    "pausers": [
-      "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38"
+    "transferAssetRateLimits": [
+      {
+        "asset": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+        "destination": "spPrimePAUAlmProxy",
+        "maxAmount": 1000000000000000000,
+        "slope": 0
+      }
     ]
   }
 }
