@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.34;
 
-import { Script, stdJson } from "lib/forge-std/src/Script.sol";
+import { Script, stdJson } from "../lib/forge-std/src/Script.sol";
 
-import { ScriptTools } from "lib/dss-test/src/ScriptTools.sol";
+import { ScriptTools } from "../lib/dss-test/src/ScriptTools.sol";
 
-import { DeploySparkPrimeVaultBase } from "deploy/Deploy.sol";
+import { DeploySparkPrimeVaultBase } from "../deploy/Deploy.sol";
 
-abstract contract DeploySparkPrimeVault is DeploySparkPrimeVaultBase {
+abstract contract DeploySparkPrimeVault is DeploySparkPrimeVaultBase, Script {
 
     using stdJson     for string;
     using ScriptTools for string;
@@ -31,7 +31,9 @@ abstract contract DeploySparkPrimeVault is DeploySparkPrimeVaultBase {
 
         vm.startBroadcast();
 
-        DeployedInstance memory deployed = _deploy(_parseConfig(config, paus));
+        ( , address deployer, ) = vm.readCallers();
+
+        DeployedInstance memory deployed = _deploy(_parseConfig(config, paus), deployer);
 
         vm.stopBroadcast();
 

@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.34;
 
-import { Script, stdJson } from "lib/forge-std/src/Script.sol";
+import { stdJson } from "../lib/forge-std/src/StdJson.sol";
+import { Vm }      from "../lib/forge-std/src/Vm.sol";
 
-import { ERC1967Proxy } from "lib/spark-prime-vault/lib/oz/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import { ERC1967Proxy } from "../lib/spark-prime-vault/lib/oz/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-import { SparkPrimeVault } from "lib/spark-prime-vault/src/SparkPrimeVault.sol";
+import { SparkPrimeVault } from "../lib/spark-prime-vault/src/SparkPrimeVault.sol";
 
 interface IAccessControlsLike {
 
@@ -65,9 +66,11 @@ interface IPAUFactoryLike {
 
 }
 
-abstract contract DeploySparkPrimeVaultBase is Script {
+abstract contract DeploySparkPrimeVaultBase {
 
     using stdJson for string;
+
+    Vm private constant _vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
     struct VaultConfig {
         address savingsVaultV2;
@@ -143,7 +146,7 @@ abstract contract DeploySparkPrimeVaultBase is Script {
 
     bytes32 internal constant DEFAULT_ADMIN_ROLE = 0x00;
 
-    function _deploy(Config memory cfg) internal returns (DeployedInstance memory deployed) {
+    function _deploy(Config memory cfg, address deployer) internal returns (DeployedInstance memory deployed) {
         require(block.chainid == cfg.chainId, "DeploySparkPrimeVaultBase/invalid-chain-id");
 
         // Step 1: Deploy the Spark Prime Vault with the deployer as temporary admin.
@@ -158,7 +161,7 @@ abstract contract DeploySparkPrimeVaultBase is Script {
                     cfg.vault.savingsVaultV2,
                     cfg.vault.name,
                     cfg.vault.symbol,
-                    msg.sender,
+                    deployer,
                     cfg.vault.minDeposit,
                     cfg.vault.minDepositCancellation,
                     cfg.vault.minRedeem
@@ -172,7 +175,7 @@ abstract contract DeploySparkPrimeVaultBase is Script {
         deployed.paus = new PAUInstance[](cfg.paus.length);
 
         for (uint16 i; i < cfg.paus.length; ++i) {
-            deployed.paus[i] = _deployPAU(cfg.pauFactory, msg.sender);
+            deployed.paus[i] = _deployPAU(cfg.pauFactory, deployer);
         }
 
         // Step 3: Configure the Spark Prime Vault.
@@ -190,7 +193,7 @@ abstract contract DeploySparkPrimeVaultBase is Script {
         // Vault admin handoff.
 
         IAccessControlsLike(deployed.spPrime).grantRole(DEFAULT_ADMIN_ROLE,  cfg.vault.admin);
-        IAccessControlsLike(deployed.spPrime).revokeRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        IAccessControlsLike(deployed.spPrime).revokeRole(DEFAULT_ADMIN_ROLE, deployer);
 
         // PAUs admin handoff.
 
@@ -199,9 +202,9 @@ abstract contract DeploySparkPrimeVaultBase is Script {
             IAccessControlsLike(deployed.paus[i].rateLimits).grantRole(DEFAULT_ADMIN_ROLE,     cfg.paus[i].admin);
             IAccessControlsLike(deployed.paus[i].almProxy).grantRole(DEFAULT_ADMIN_ROLE,       cfg.paus[i].admin);
 
-            IAccessControlsLike(deployed.paus[i].accessControls).revokeRole(DEFAULT_ADMIN_ROLE, msg.sender);
-            IAccessControlsLike(deployed.paus[i].rateLimits).revokeRole(DEFAULT_ADMIN_ROLE,     msg.sender);
-            IAccessControlsLike(deployed.paus[i].almProxy).revokeRole(DEFAULT_ADMIN_ROLE,       msg.sender);
+            IAccessControlsLike(deployed.paus[i].accessControls).revokeRole(DEFAULT_ADMIN_ROLE, deployer);
+            IAccessControlsLike(deployed.paus[i].rateLimits).revokeRole(DEFAULT_ADMIN_ROLE,     deployer);
+            IAccessControlsLike(deployed.paus[i].almProxy).revokeRole(DEFAULT_ADMIN_ROLE,       deployer);
         }
     }
 
@@ -292,7 +295,7 @@ abstract contract DeploySparkPrimeVaultBase is Script {
         if (_eq(str, "spPrime"))            return deployed.spPrime;
         if (_eq(str, "spPrimePAUAlmProxy")) return deployed.paus[0].almProxy;
 
-        return vm.parseAddress(str);
+        return _vm.parseAddress(str);
     }
 
     function _eq(string memory a, string memory b) internal pure returns (bool) {
@@ -304,7 +307,7 @@ abstract contract DeploySparkPrimeVaultBase is Script {
     }
 
     function _index(string memory key, uint256 index) internal pure returns (string memory) {
-        return string(abi.encodePacked(key, "[", vm.toString(index), "]"));
+        return string(abi.encodePacked(key, "[", _vm.toString(index), "]"));
     }
 
     function _parseConfig(string memory config, string[] memory paus) internal view returns (Config memory cfg) {
