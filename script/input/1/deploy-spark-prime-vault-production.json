@@ -2,15 +2,12 @@
   "_info": "Spark Prime Vault Mainnet deployment.",
 
   "chainId": 1,
-  "pauFactory": "0x60eB26db57bD058B6D742a1f6350A7FFeAb0681E",
-  "allocatorAgent": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
-  "configurator": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
 
   "spPrime": {
     "savingsVaultV2": "0x28B3a8fb53B741A8Fd78c0fb9A6B2393d896a43d",
     "name": "Spark Prime USDC",
     "symbol": "spPrime",
-    "admin": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
+    "admin": "0x3300f198988e4C9C63F75dF86De36421f06af8c4",
     "minimumDeposit": 1000000000000000000,
     "minimumDepositCancellation": 1000000000000000000,
     "minimumRedeem": 1000000000000000000,
@@ -24,61 +21,71 @@
     "lossManager": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38"
   },
 
-  "spPrimePAU": {
-    "admin": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
-    "integrationIds": [
-      "TRANSFER_ASSET_FACET",
-      "ERC4626_FACET",
-      "SPARK_VAULT_FACET"
-    ],
-    "sparkVaultRateLimits": [
+  "PAU": {
+    "defaultPAUAssembler": "0xc812aAD3FaE2D3511C664374B601a9BeBFeCCa2E",
+    "configurator": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
+    "PAUs": [
       {
-        "sparkVault": "spPrime",
-        "maxAmount": 1000000000000000000,
-        "slope": 0
-      }
-    ],
-    "erc4626RateLimits": [
-      {
-        "token": "0x28B3a8fb53B741A8Fd78c0fb9A6B2393d896a43d",
-        "asset": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-        "depositMaxAmount": 0,
-        "depositSlope": 0,
-        "withdrawMaxAmount": 0,
-        "withdrawSlope": 0,
-        "maxExchangeRate": 10
+        "name": "spPrimePAU",
+        "admin": "0x3300f198988e4C9C63F75dF86De36421f06af8c4",
+        "relayer": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
+        "grantor": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
+        "revoker": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
+        "integrationIds": [
+          "TRANSFER_ASSET_FACET",
+          "ERC4626_FACET",
+          "SPARK_VAULT_FACET"
+        ],
+        "rateLimits": {
+          "transferAssetRateLimits": [
+            {
+              "asset": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+              "destination": "spPrime",
+              "maxAmount": 1000000000000000000,
+              "slope": 0
+            }
+          ],
+          "erc4626RateLimits": [
+            {
+              "token": "0x28B3a8fb53B741A8Fd78c0fb9A6B2393d896a43d",
+              "asset": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+              "depositMaxAmount": 0,
+              "depositSlope": 0,
+              "withdrawMaxAmount": 0,
+              "withdrawSlope": 0,
+              "maxExchangeRate": 10
+            }
+          ],
+          "sparkVaultRateLimits": [
+            {
+              "sparkVault": "spPrime",
+              "maxAmount": 1000000000000000000,
+              "slope": 0
+            }
+          ]
+        }
       },
       {
-        "token": "0x28B3a8fb53B741A8Fd78c0fb9A6B2393d896a43d",
-        "asset": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-        "depositMaxAmount": 0,
-        "depositSlope": 0,
-        "withdrawMaxAmount": 0,
-        "withdrawSlope": 0,
-        "maxExchangeRate": 10
-      }
-    ],
-    "transferAssetRateLimits": [
-      {
-        "asset": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-        "destination": "spPrimePAUAlmProxy",
-        "maxAmount": 1000000000000000000,
-        "slope": 0
-      }
-    ]
-  },
-
-  "flcPAU": {
-    "admin": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
-    "integrationIds": [
-      "TRANSFER_ASSET_FACET"
-    ],
-    "transferAssetRateLimits": [
-      {
-        "asset": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-        "destination": "spPrimePAUAlmProxy",
-        "maxAmount": 1000000000000000000,
-        "slope": 0
+        "name": "flcPAU",
+        "admin": "0x3300f198988e4C9C63F75dF86De36421f06af8c4",
+        "relayer": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
+        "grantor": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
+        "revoker": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
+        "integrationIds": [
+          "TRANSFER_ASSET_FACET"
+        ],
+        "rateLimits": {
+          "transferAssetRateLimits": [
+            {
+              "asset": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+              "destination": "spPrimePAUAlmProxy",
+              "maxAmount": 1000000000000000000,
+              "slope": 0
+            }
+          ],
+          "erc4626RateLimits": [],
+          "sparkVaultRateLimits": []
+        }
       }
     ]
   },
