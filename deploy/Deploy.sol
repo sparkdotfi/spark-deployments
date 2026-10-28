@@ -129,7 +129,7 @@ abstract contract DeploySparkPrimeVaultBase {
         SparkVaultRateLimit[]    sparkVaultRateLimits;
     }
 
-    struct Config {
+    struct SparkPrimeVaultConfig {
         uint256     chainId;
         address     pauFactory;
         address     allocatorAgent;
@@ -146,7 +146,7 @@ abstract contract DeploySparkPrimeVaultBase {
 
     bytes32 internal constant DEFAULT_ADMIN_ROLE = 0x00;
 
-    function _deploy(Config memory cfg, address deployer) internal returns (DeployedInstance memory deployed) {
+    function _deploy(SparkPrimeVaultConfig memory cfg, address deployer) internal returns (DeployedInstance memory deployed) {
         require(block.chainid == cfg.chainId, "DeploySparkPrimeVaultBase/invalid-chain-id");
 
         // Step 1: Deploy the Spark Prime Vault with the deployer as temporary admin.
@@ -310,7 +310,7 @@ abstract contract DeploySparkPrimeVaultBase {
         return string(abi.encodePacked(key, "[", _vm.toString(index), "]"));
     }
 
-    function _parseConfig(string memory config, string[] memory paus) internal view returns (Config memory cfg) {
+    function _parseConfig(string memory config, string[] memory paus) internal view returns (SparkPrimeVaultConfig memory cfg) {
         cfg.chainId        = config.readUint(".chainId");
         cfg.pauFactory     = config.readAddress(".pauFactory");
         cfg.allocatorAgent = config.readAddress(".allocatorAgent");

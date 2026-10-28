@@ -81,5 +81,17 @@
         "slope": 0
       }
     ]
+  },
+
+  "pas": {
+    "owner": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
+    "minDelay": 100000,
+    "coreCouncil": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
+    "cancellers": [
+      "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38"
+    ],
+    "pausers": [
+      "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38"
+    ]
   }
 }
