@@ -3,16 +3,24 @@ pragma solidity ^0.8.34;
 
 import { ScriptTools } from "../../lib/dss-test/src/ScriptTools.sol";
 
-import { stdJson } from "../../lib/forge-std/src/StdJson.sol";
-import { Test }    from "../../lib/forge-std/src/Test.sol";
+import { stdJson }  from "../../lib/forge-std/src/StdJson.sol";
+import { Test, Vm } from "../../lib/forge-std/src/Test.sol";
 
-import { IERC20 } from "../../lib/spark-prime-vault/lib/oz/contracts/token/ERC20/IERC20.sol";
+import { IAccessControl } from "../../lib/spark-prime-vault/lib/oz/contracts/access/IAccessControl.sol";
 
 import { SparkPrimeVault } from "../../lib/spark-prime-vault/src/SparkPrimeVault.sol";
 
 import { DeployPASBase, PASInstance } from "../../lib/spark-pas-deploy/deploy/Deploy.sol";
 
-import { DeploySparkPrimeVaultBase, IControllerLike, IERC20Like } from "../../deploy/Deploy.sol";
+import { DeploySparkPrimeVaultBase, IControllerLike } from "../../deploy/Deploy.sol";
+
+interface IERC20Like {
+
+    function allowance(address owner, address spender) external view returns (uint256);
+
+    function decimals() external view returns (uint8);
+
+}
 
 interface IERC4626Like {
 
@@ -131,6 +139,8 @@ abstract contract ConfigurationTestBase is DeploySparkPrimeVaultBase, DeployPASB
 
     PAUInstance[] internal paus;
 
+    Vm.Log[] internal _deployLogs;
+
     function setUp() public virtual {
         vm.createSelectFork(getChain("mainnet").rpcUrl);
 
@@ -163,9 +173,17 @@ abstract contract ConfigurationTestBase is DeploySparkPrimeVaultBase, DeployPASB
     function _deploySparkPrimeVault(address deployer_) internal {
         SparkPrimeVaultConfig memory cfg = _loadConfig();
 
+        vm.recordLogs();
+
         vm.startPrank(deployer_);
         DeployedInstance memory deployed = _deployAndConfigure(cfg, deployer_);
         vm.stopPrank();
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        for (uint256 i; i < logs.length; ++i) {
+            _deployLogs.push(logs[i]);
+        }
 
         vaultCfg       = cfg.vault;
         pauFactory     = cfg.pauFactory;
@@ -211,6 +229,46 @@ abstract contract ConfigurationTestBase is DeploySparkPrimeVaultBase, DeployPASB
         deployed.spPrimeImplementation = spPrimeImplementation;
         deployed.spPrime               = address(spPrime);
         deployed.paus                  = paus;
+    }
+
+    // Returns the logs emitted by `target` during deployment, optionally filtered by `topic0`
+    // (zero means all events), in emission order.
+    function _getEvents(address target, bytes32 topic0) internal view returns (Vm.Log[] memory logs) {
+        uint256 count;
+
+        for (uint256 i; i < _deployLogs.length; ++i) {
+            if (_matches(_deployLogs[i], target, topic0)) count++;
+        }
+
+        logs = new Vm.Log[](count);
+
+        uint256 j;
+
+        for (uint256 i; i < _deployLogs.length; ++i) {
+            if (_matches(_deployLogs[i], target, topic0)) logs[j++] = _deployLogs[i];
+        }
+    }
+
+    function _matches(Vm.Log storage log, address target, bytes32 topic0) internal view returns (bool) {
+        return log.emitter == target && (topic0 == bytes32(0) || log.topics[0] == topic0);
+    }
+
+    function _assertRoleGrantedEvent(Vm.Log memory log, bytes32 role, address account, address sender) internal pure {
+        assertEq(log.topics[0],             IAccessControl.RoleGranted.selector);
+        assertEq(log.topics[1],             role);
+        assertEq(_toAddress(log.topics[2]), account);
+        assertEq(_toAddress(log.topics[3]), sender);
+    }
+
+    function _assertRoleRevokedEvent(Vm.Log memory log, bytes32 role, address account, address sender) internal pure {
+        assertEq(log.topics[0],             IAccessControl.RoleRevoked.selector);
+        assertEq(log.topics[1],             role);
+        assertEq(_toAddress(log.topics[2]), account);
+        assertEq(_toAddress(log.topics[3]), sender);
+    }
+
+    function _toAddress(bytes32 b) internal pure returns (address) {
+        return address(uint160(uint256(b)));
     }
 
     function _implementation(address proxy) internal view returns (address) {
@@ -300,7 +358,7 @@ contract SparkPrimeVaultConfigurationTests is ConfigurationTestBase {
     function test_proxy() external view {
         assertEq(_implementation(address(spPrime)), spPrimeImplementation);
 
-        assertTrue(spPrimeImplementation.code.length > 0);
+        assertEq(spPrimeImplementation.code.length > 0, true);
     }
 
     /**********************************************************************************************/
@@ -330,7 +388,7 @@ contract SparkPrimeVaultConfigurationTests is ConfigurationTestBase {
 
         assertEq(spPrime.paused(), false);
 
-        assertEq(IERC20(asset).allowance(address(spPrime), vaultCfg.savingsVaultV2), type(uint256).max);
+        assertEq(IERC20Like(asset).allowance(address(spPrime), vaultCfg.savingsVaultV2), type(uint256).max);
     }
 
     /**********************************************************************************************/
@@ -351,46 +409,33 @@ contract SparkPrimeVaultConfigurationTests is ConfigurationTestBase {
     /**********************************************************************************************/
 
     function test_roles() external view {
-        assertEq(spPrime.getRoleMemberCount(spPrime.PAUSER_ROLE()), 1);
-        assertTrue(spPrime.hasRole(spPrime.PAUSER_ROLE(),           vaultCfg.pauser));
+        assertEq(spPrime.getRoleMemberCount(spPrime.PAUSER_ROLE()),       1);
+        assertEq(spPrime.hasRole(spPrime.PAUSER_ROLE(), vaultCfg.pauser), true);
 
-        assertEq(spPrime.getRoleMemberCount(spPrime.UNPAUSER_ROLE()), 1);
-        assertTrue(spPrime.hasRole(spPrime.UNPAUSER_ROLE(),           vaultCfg.unpauser));
+        assertEq(spPrime.getRoleMemberCount(spPrime.UNPAUSER_ROLE()),         1);
+        assertEq(spPrime.hasRole(spPrime.UNPAUSER_ROLE(), vaultCfg.unpauser), true);
 
-        assertEq(spPrime.getRoleMemberCount(spPrime.OPERATOR_ROLE()), 1);
-        assertTrue(spPrime.hasRole(spPrime.OPERATOR_ROLE(),           vaultCfg.operator));
+        assertEq(spPrime.getRoleMemberCount(spPrime.OPERATOR_ROLE()),         1);
+        assertEq(spPrime.hasRole(spPrime.OPERATOR_ROLE(), vaultCfg.operator), true);
 
-        assertEq(spPrime.getRoleMemberCount(spPrime.REDEEM_FEE_SETTER_ROLE()), 1);
-        assertTrue(spPrime.hasRole(spPrime.REDEEM_FEE_SETTER_ROLE(),           vaultCfg.redeemFeeSetter));
+        assertEq(spPrime.getRoleMemberCount(spPrime.REDEEM_FEE_SETTER_ROLE()),                1);
+        assertEq(spPrime.hasRole(spPrime.REDEEM_FEE_SETTER_ROLE(), vaultCfg.redeemFeeSetter), true);
 
-        assertEq(spPrime.getRoleMemberCount(spPrime.LOSS_MANAGER_ROLE()), 1);
-        assertTrue(spPrime.hasRole(spPrime.LOSS_MANAGER_ROLE(),           vaultCfg.lossManager));
+        assertEq(spPrime.getRoleMemberCount(spPrime.LOSS_MANAGER_ROLE()),            1);
+        assertEq(spPrime.hasRole(spPrime.LOSS_MANAGER_ROLE(), vaultCfg.lossManager), true);
     }
 
     function test_takerRole() external view {
         assertEq(spPrime.getRoleMemberCount(spPrime.TAKER_ROLE()), 1);
 
-        assertTrue(spPrime.hasRole(spPrime.TAKER_ROLE(), takerAlmProxy));
+        assertEq(spPrime.hasRole(spPrime.TAKER_ROLE(), takerAlmProxy), true);
     }
 
     function test_adminHandoff() external view {
         assertEq(spPrime.getRoleMemberCount(DEFAULT_ADMIN_ROLE), 1);
 
-        assertTrue(spPrime.hasRole(DEFAULT_ADMIN_ROLE,  vaultCfg.admin));
-        assertFalse(spPrime.hasRole(DEFAULT_ADMIN_ROLE, deployer));
-    }
-
-    /**********************************************************************************************/
-    /*** PAS                                                                                    ***/
-    /**********************************************************************************************/
-
-    function test_pasConfigurator() external view {
-        assertEq(paus.length, 2);
-
-        for (uint256 i; i < paus.length; ++i) {
-            assertTrue(IAccessControlLike(paus[i].accessControls).hasRole(DEFAULT_ADMIN_ROLE, pas.configurator));
-            assertTrue(IAccessControlLike(paus[i].rateLimits).hasRole(DEFAULT_ADMIN_ROLE,     pas.configurator));
-        }
+        assertEq(spPrime.hasRole(DEFAULT_ADMIN_ROLE,  vaultCfg.admin), true);
+        assertEq(spPrime.hasRole(DEFAULT_ADMIN_ROLE, deployer),        false);
     }
 
 }
@@ -432,29 +477,69 @@ contract PAUConfigurationTests is ConfigurationTestBase {
             bytes32 controllerRole = IRateLimitsLike(pau.rateLimits).CONTROLLER();
 
             // The controller acts through the ALMProxy and the RateLimits.
-            assertTrue(almProxy.hasRole(controllerRole,   pau.controller));
-            assertTrue(rateLimits.hasRole(controllerRole, pau.controller));
+            assertEq(almProxy.hasRole(controllerRole,   pau.controller), true);
+            assertEq(rateLimits.hasRole(controllerRole, pau.controller), true);
 
             // The allocator agent is the only allocator.
-            assertEq(accessControls.getRoleMemberCount(ALLOCATOR_ROLE), 1);
-            assertTrue(accessControls.hasRole(ALLOCATOR_ROLE,           allocatorAgent));
+            assertEq(accessControls.getRoleMemberCount(ALLOCATOR_ROLE),      1);
+            assertEq(accessControls.hasRole(ALLOCATOR_ROLE, allocatorAgent), true);
 
             // The PAU admin and the PAS configurator administer the AccessControls and RateLimits.
-            assertEq(accessControls.getRoleMemberCount(DEFAULT_ADMIN_ROLE), 2);
-            assertTrue(accessControls.hasRole(DEFAULT_ADMIN_ROLE,           pauCfg.admin));
-            assertTrue(accessControls.hasRole(DEFAULT_ADMIN_ROLE,           pas.configurator));
+            assertEq(accessControls.getRoleMemberCount(DEFAULT_ADMIN_ROLE),        2);
+            assertEq(accessControls.hasRole(DEFAULT_ADMIN_ROLE, pauCfg.admin),     true);
+            assertEq(accessControls.hasRole(DEFAULT_ADMIN_ROLE, pas.configurator), true);
 
-            assertTrue(rateLimits.hasRole(DEFAULT_ADMIN_ROLE, pauCfg.admin));
-            assertTrue(rateLimits.hasRole(DEFAULT_ADMIN_ROLE, pas.configurator));
+            assertEq(rateLimits.hasRole(DEFAULT_ADMIN_ROLE, pauCfg.admin),     true);
+            assertEq(rateLimits.hasRole(DEFAULT_ADMIN_ROLE, pas.configurator), true);
 
             // Only the PAU admin administers the ALMProxy.
-            assertTrue(almProxy.hasRole(DEFAULT_ADMIN_ROLE,  pauCfg.admin));
-            assertFalse(almProxy.hasRole(DEFAULT_ADMIN_ROLE, pas.configurator));
+            assertEq(almProxy.hasRole(DEFAULT_ADMIN_ROLE,  pauCfg.admin),    true);
+            assertEq(almProxy.hasRole(DEFAULT_ADMIN_ROLE, pas.configurator), false);
 
             // The deployer is stripped everywhere.
-            assertFalse(accessControls.hasRole(DEFAULT_ADMIN_ROLE, deployer));
-            assertFalse(almProxy.hasRole(DEFAULT_ADMIN_ROLE,       deployer));
-            assertFalse(rateLimits.hasRole(DEFAULT_ADMIN_ROLE,     deployer));
+            assertEq(accessControls.hasRole(DEFAULT_ADMIN_ROLE, deployer), false);
+            assertEq(almProxy.hasRole(DEFAULT_ADMIN_ROLE,       deployer), false);
+            assertEq(rateLimits.hasRole(DEFAULT_ADMIN_ROLE,     deployer), false);
+        }
+    }
+
+    function test_pau_roleEvents() external view {
+        SparkPrimeVaultConfig memory cfg = _loadConfig();
+
+        for (uint256 i; i < paus.length; ++i) {
+            PAUInstance memory pau    = paus[i];
+            PAUConfig   memory pauCfg = cfg.paus[i];
+
+            bytes32 controllerRole = IRateLimitsLike(pau.rateLimits).CONTROLLER();
+
+            // ALMProxy
+
+            Vm.Log[] memory grantedLogs = _getEvents(pau.almProxy, IAccessControl.RoleGranted.selector);
+            Vm.Log[] memory revokedLogs = _getEvents(pau.almProxy, IAccessControl.RoleRevoked.selector);
+
+            assertEq(grantedLogs.length, 3);
+            assertEq(revokedLogs.length, 1);
+
+            _assertRoleGrantedEvent(grantedLogs[0], DEFAULT_ADMIN_ROLE, deployer,       pauFactory);  // Constructor
+            _assertRoleGrantedEvent(grantedLogs[1], controllerRole,     pau.controller, deployer);
+            _assertRoleGrantedEvent(grantedLogs[2], DEFAULT_ADMIN_ROLE, pauCfg.admin,   deployer);
+
+            _assertRoleRevokedEvent(revokedLogs[0], DEFAULT_ADMIN_ROLE, deployer, deployer);
+
+            // RateLimits
+
+            grantedLogs = _getEvents(pau.rateLimits, IAccessControl.RoleGranted.selector);
+            revokedLogs = _getEvents(pau.rateLimits, IAccessControl.RoleRevoked.selector);
+
+            assertEq(grantedLogs.length, 4);
+            assertEq(revokedLogs.length, 1);
+
+            _assertRoleGrantedEvent(grantedLogs[0], DEFAULT_ADMIN_ROLE, deployer,         pauFactory);  // Constructor
+            _assertRoleGrantedEvent(grantedLogs[1], controllerRole,     pau.controller,   deployer);
+            _assertRoleGrantedEvent(grantedLogs[2], DEFAULT_ADMIN_ROLE, pas.configurator, deployer);
+            _assertRoleGrantedEvent(grantedLogs[3], DEFAULT_ADMIN_ROLE, pauCfg.admin,     deployer);
+
+            _assertRoleRevokedEvent(revokedLogs[0], DEFAULT_ADMIN_ROLE, deployer, deployer);
         }
     }
 
@@ -478,7 +563,7 @@ contract PAUConfigurationTests is ConfigurationTestBase {
                 IControllerViewLike.IntegrationConfig memory expected = beacon.getConfig(ids[j]);
                 IControllerViewLike.IntegrationConfig memory actual   = controller.getConfig(ids[j]);
 
-                assertTrue(expected.facet != address(0));
+                assertEq(expected.facet != address(0), true);
 
                 assertEq(actual.facet,        expected.facet);
                 assertEq(actual.wires.length, expected.wires.length);
@@ -607,6 +692,19 @@ contract PAUConfigurationTests is ConfigurationTestBase {
         assertEq(data.slope,       slope);
         assertEq(data.lastAmount,  maxAmount);
         assertEq(data.lastUpdated, block.timestamp);
+    }
+
+    /**********************************************************************************************/
+    /*** PAS                                                                                    ***/
+    /**********************************************************************************************/
+
+    function test_pasConfigurator() external view {
+        assertEq(paus.length, 2);
+
+        for (uint256 i; i < paus.length; ++i) {
+            assertEq(IAccessControlLike(paus[i].accessControls).hasRole(DEFAULT_ADMIN_ROLE, pas.configurator), true);
+            assertEq(IAccessControlLike(paus[i].rateLimits).hasRole(DEFAULT_ADMIN_ROLE,     pas.configurator), true);
+        }
     }
 
 }
