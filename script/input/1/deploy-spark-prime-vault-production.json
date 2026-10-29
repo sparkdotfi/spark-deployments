@@ -60,8 +60,8 @@
     ],
     "transferAssetRateLimits": [
       {
-        "asset": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-        "destination": "spPrimePAUAlmProxy",
+        "asset": "0x28B3a8fb53B741A8Fd78c0fb9A6B2393d896a43d",
+        "destination": "spPrime",
         "maxAmount": 1000000000000000000,
         "slope": 0
       }
@@ -75,7 +75,7 @@
     ],
     "transferAssetRateLimits": [
       {
-        "asset": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+        "asset": "0x28B3a8fb53B741A8Fd78c0fb9A6B2393d896a43d",
         "destination": "spPrimePAUAlmProxy",
         "maxAmount": 1000000000000000000,
         "slope": 0

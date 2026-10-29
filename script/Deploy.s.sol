@@ -33,7 +33,7 @@ abstract contract DeploySparkPrimeVault is DeploySparkPrimeVaultBase, Script {
 
         ( , address deployer, ) = vm.readCallers();
 
-        DeployedInstance memory deployed = _deploy(_parseConfig(config, paus), deployer);
+        DeployedInstance memory deployed = _deployAndConfigure(_parseConfig(config, paus), deployer);
 
         vm.stopBroadcast();
 

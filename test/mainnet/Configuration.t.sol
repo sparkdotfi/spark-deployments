@@ -152,7 +152,7 @@ abstract contract ConfigurationTestBase is DeploySparkPrimeVaultBase, DeployPASB
         });
 
         vm.startPrank(deployer);
-        pas = _deployAndConfigurePAS(deployer, pasCfg);
+        pas = _deployAndConfigurePAS(pasCfg, deployer);
         vm.stopPrank();
 
         vm.label(pas.beamState,    "beamState");
@@ -164,7 +164,7 @@ abstract contract ConfigurationTestBase is DeploySparkPrimeVaultBase, DeployPASB
         SparkPrimeVaultConfig memory cfg = _loadConfig();
 
         vm.startPrank(deployer_);
-        DeployedInstance memory deployed = _deploy(cfg, deployer_);
+        DeployedInstance memory deployed = _deployAndConfigure(cfg, deployer_);
         vm.stopPrank();
 
         vaultCfg       = cfg.vault;
@@ -220,6 +220,78 @@ abstract contract ConfigurationTestBase is DeploySparkPrimeVaultBase, DeployPASB
 }
 
 contract SparkPrimeVaultConfigurationTests is ConfigurationTestBase {
+
+    function test_parseConfig() external view {
+        string memory config = vm.readFile(
+            string(abi.encodePacked(vm.projectRoot(), "/script/input/1/deploy-spark-prime-vault-production.json"))
+        );
+
+        string[] memory pauNames = new string[](2);
+        pauNames[0] = "spPrimePAU";
+        pauNames[1] = "flcPAU";
+
+        SparkPrimeVaultConfig memory cfg = _parseConfig(config, pauNames);
+
+        assertEq(cfg.chainId,        1);
+        assertEq(cfg.pauFactory,     0x60eB26db57bD058B6D742a1f6350A7FFeAb0681E);
+        assertEq(cfg.allocatorAgent, 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38);
+        assertEq(cfg.configurator,   0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38);
+
+        assertEq(cfg.vault.savingsVaultV2,         0x28B3a8fb53B741A8Fd78c0fb9A6B2393d896a43d);
+        assertEq(cfg.vault.name,                   "Spark Prime USDC");
+        assertEq(cfg.vault.symbol,                 "spPrime");
+        assertEq(cfg.vault.admin,                  0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38);
+        assertEq(cfg.vault.minDeposit,             1e18);
+        assertEq(cfg.vault.minDepositCancellation, 1e18);
+        assertEq(cfg.vault.minRedeem,              1e18);
+        assertEq(cfg.vault.minVSR,                 1e27);
+        assertEq(cfg.vault.maxVSR,                 1e27);
+        assertEq(cfg.vault.maxRedeemFeeRate,       1);
+        assertEq(cfg.vault.pauser,                 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38);
+        assertEq(cfg.vault.unpauser,               0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38);
+        assertEq(cfg.vault.operator,               0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38);
+        assertEq(cfg.vault.redeemFeeSetter,        0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38);
+        assertEq(cfg.vault.lossManager,            0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38);
+
+        assertEq(cfg.paus[0].admin,                                    0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38);
+        assertEq(cfg.paus[0].integrationIds.length,                    3);
+        assertEq(cfg.paus[0].integrationIds[0],                        "TRANSFER_ASSET_FACET");
+        assertEq(cfg.paus[0].integrationIds[1],                        "ERC4626_FACET");
+        assertEq(cfg.paus[0].integrationIds[2],                        "SPARK_VAULT_FACET");
+        assertEq(cfg.paus[0].transferAssetRateLimits.length,           1);
+        assertEq(cfg.paus[0].erc4626RateLimits.length,                 2);
+        assertEq(cfg.paus[0].sparkVaultRateLimits.length,              1);
+        assertEq(cfg.paus[0].transferAssetRateLimits[0].asset,         0x28B3a8fb53B741A8Fd78c0fb9A6B2393d896a43d);
+        assertEq(cfg.paus[0].transferAssetRateLimits[0].destination,   "spPrime");
+        assertEq(cfg.paus[0].transferAssetRateLimits[0].maxAmount,     1e18);
+        assertEq(cfg.paus[0].transferAssetRateLimits[0].slopePerDay,   0);
+        assertEq(cfg.paus[0].erc4626RateLimits[0].token,              "0x28B3a8fb53B741A8Fd78c0fb9A6B2393d896a43d");
+        assertEq(cfg.paus[0].erc4626RateLimits[0].asset,               0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
+        assertEq(cfg.paus[0].erc4626RateLimits[0].depositMaxAmount,    0);
+        assertEq(cfg.paus[0].erc4626RateLimits[0].depositSlopePerDay,  0);
+        assertEq(cfg.paus[0].erc4626RateLimits[0].withdrawMaxAmount,   0);
+        assertEq(cfg.paus[0].erc4626RateLimits[0].withdrawSlopePerDay, 0);
+        assertEq(cfg.paus[0].erc4626RateLimits[0].maxExchangeRate,     10);
+        assertEq(cfg.paus[0].erc4626RateLimits[1].token,              "0x28B3a8fb53B741A8Fd78c0fb9A6B2393d896a43d");
+        assertEq(cfg.paus[0].erc4626RateLimits[1].asset,               0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
+        assertEq(cfg.paus[0].erc4626RateLimits[1].depositMaxAmount,    0);
+        assertEq(cfg.paus[0].erc4626RateLimits[1].depositSlopePerDay,  0);
+        assertEq(cfg.paus[0].erc4626RateLimits[1].withdrawMaxAmount,   0);
+        assertEq(cfg.paus[0].erc4626RateLimits[1].withdrawSlopePerDay, 0);
+        assertEq(cfg.paus[0].erc4626RateLimits[1].maxExchangeRate,     10);
+        assertEq(cfg.paus[0].sparkVaultRateLimits[0].sparkVault,       "spPrime");
+        assertEq(cfg.paus[0].sparkVaultRateLimits[0].maxAmount,        1000000000000000000);
+        assertEq(cfg.paus[0].sparkVaultRateLimits[0].slopePerDay,      0);
+
+        assertEq(cfg.paus[1].admin,                                  0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38);
+        assertEq(cfg.paus[1].integrationIds.length,                  1);
+        assertEq(cfg.paus[1].integrationIds[0],                      "TRANSFER_ASSET_FACET");
+        assertEq(cfg.paus[1].transferAssetRateLimits.length,         1);
+        assertEq(cfg.paus[1].transferAssetRateLimits[0].asset,       0x28B3a8fb53B741A8Fd78c0fb9A6B2393d896a43d);
+        assertEq(cfg.paus[1].transferAssetRateLimits[0].destination, "spPrimePAUAlmProxy");
+        assertEq(cfg.paus[1].transferAssetRateLimits[0].maxAmount,   1e18);
+        assertEq(cfg.paus[1].transferAssetRateLimits[0].slopePerDay, 0);
+    }
 
     /**********************************************************************************************/
     /*** Proxy                                                                                  ***/

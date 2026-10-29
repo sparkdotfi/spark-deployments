@@ -14,6 +14,8 @@ interface IAccessControlsLike {
 
     function revokeRole(bytes32 role, address account) external;
 
+    function ALLOCATOR_ROLE() external view returns (bytes32);
+
 }
 
 interface IALMProxyLike {
@@ -146,7 +148,7 @@ abstract contract DeploySparkPrimeVaultBase {
 
     bytes32 internal constant DEFAULT_ADMIN_ROLE = 0x00;
 
-    function _deploy(SparkPrimeVaultConfig memory cfg, address deployer) internal returns (DeployedInstance memory deployed) {
+    function _deployAndConfigure(SparkPrimeVaultConfig memory cfg, address deployer) internal returns (DeployedInstance memory deployed) {
         require(block.chainid == cfg.chainId, "DeploySparkPrimeVaultBase/invalid-chain-id");
 
         // Step 1: Deploy the Spark Prime Vault with the deployer as temporary admin.
@@ -192,12 +194,16 @@ abstract contract DeploySparkPrimeVaultBase {
 
         // Vault admin handoff.
 
+        require(cfg.vault.admin != deployer && cfg.vault.admin != address(0), "DeploySparkPrimeVaultBase/invalid-vault-admin");
+
         IAccessControlsLike(deployed.spPrime).grantRole(DEFAULT_ADMIN_ROLE,  cfg.vault.admin);
         IAccessControlsLike(deployed.spPrime).revokeRole(DEFAULT_ADMIN_ROLE, deployer);
 
         // PAUs admin handoff.
 
         for (uint16 i; i < cfg.paus.length; ++i) {
+            require(cfg.paus[i].admin != deployer && cfg.paus[i].admin != address(0), "DeploySparkPrimeVaultBase/invalid-pau-admin");
+
             IAccessControlsLike(deployed.paus[i].accessControls).grantRole(DEFAULT_ADMIN_ROLE, cfg.paus[i].admin);
             IAccessControlsLike(deployed.paus[i].rateLimits).grantRole(DEFAULT_ADMIN_ROLE,     cfg.paus[i].admin);
             IAccessControlsLike(deployed.paus[i].almProxy).grantRole(DEFAULT_ADMIN_ROLE,       cfg.paus[i].admin);
@@ -217,57 +223,65 @@ abstract contract DeploySparkPrimeVaultBase {
         deployed.controller     = pauFactory.deployController(deployed.accessControls, deployed.almProxy, deployed.rateLimits);
     }
 
-    function _configureVault(VaultConfig memory cfg, DeployedInstance memory deployed) internal {
+    function _configureVault(VaultConfig memory vaultCfg, DeployedInstance memory deployed) internal {
         SparkPrimeVault vault = SparkPrimeVault(deployed.spPrime);
 
-        vault.setVSRBounds(cfg.minVSR, cfg.maxVSR);
-        vault.setMaxRedeemFeeRate(cfg.maxRedeemFeeRate);
+        vault.setVSRBounds(vaultCfg.minVSR, vaultCfg.maxVSR);
+        vault.setMaxRedeemFeeRate(vaultCfg.maxRedeemFeeRate);
 
-        vault.grantRole(vault.PAUSER_ROLE(),            cfg.pauser);
-        vault.grantRole(vault.UNPAUSER_ROLE(),          cfg.unpauser);
-        vault.grantRole(vault.OPERATOR_ROLE(),          cfg.operator);
-        vault.grantRole(vault.REDEEM_FEE_SETTER_ROLE(), cfg.redeemFeeSetter);
-        vault.grantRole(vault.LOSS_MANAGER_ROLE(),      cfg.lossManager);
+        vault.grantRole(vault.PAUSER_ROLE(),            vaultCfg.pauser);
+        vault.grantRole(vault.UNPAUSER_ROLE(),          vaultCfg.unpauser);
+        vault.grantRole(vault.OPERATOR_ROLE(),          vaultCfg.operator);
+        vault.grantRole(vault.REDEEM_FEE_SETTER_ROLE(), vaultCfg.redeemFeeSetter);
+        vault.grantRole(vault.LOSS_MANAGER_ROLE(),      vaultCfg.lossManager);
 
         // The taker PAU pulls savings shares out of the vault through its ALMProxy.
         // Here we assume the first PAU is the taker PAU.
         vault.grantRole(vault.TAKER_ROLE(), deployed.paus[0].almProxy);
     }
 
-    function _configurePAU(PAUConfig memory cfg, DeployedInstance memory deployed, address allocatorAgent_, address configurator_, uint16 index) internal {
-        IControllerLike controller = IControllerLike(deployed.paus[index].controller);
+    function _configurePAU(PAUConfig memory pauCfg, DeployedInstance memory deployed, address allocatorAgent_, address configurator_, uint16 index) internal {
+        PAUInstance memory pau = deployed.paus[index];
 
-        IALMProxyLike(deployed.paus[index].almProxy).grantRole(IALMProxyLike(deployed.paus[index].almProxy).CONTROLLER(),         deployed.paus[index].controller);
-        IRateLimitsLike(deployed.paus[index].rateLimits).grantRole(IRateLimitsLike(deployed.paus[index].rateLimits).CONTROLLER(), deployed.paus[index].controller);
+        IControllerLike controller = IControllerLike(pau.controller);
 
-        controller.updateIntegrations(cfg.integrationIds);
+        // Roles
 
-        IAccessControlsLike(deployed.paus[index].accessControls).grantRole(keccak256("ALLOCATOR_ROLE"), allocatorAgent_);
-        IAccessControlsLike(deployed.paus[index].accessControls).grantRole(DEFAULT_ADMIN_ROLE,          configurator_);
-        IAccessControlsLike(deployed.paus[index].rateLimits).grantRole(DEFAULT_ADMIN_ROLE,              configurator_);
+        IALMProxyLike(pau.almProxy).grantRole(IALMProxyLike(pau.almProxy).CONTROLLER(),         pau.controller);
+        IAccessControlsLike(pau.accessControls).grantRole(keccak256("ALLOCATOR_ROLE"),          allocatorAgent_);
+        IAccessControlsLike(pau.accessControls).grantRole(DEFAULT_ADMIN_ROLE,                   configurator_);
+        IRateLimitsLike(pau.rateLimits).grantRole(IRateLimitsLike(pau.rateLimits).CONTROLLER(), pau.controller);
+        IAccessControlsLike(pau.rateLimits).grantRole(DEFAULT_ADMIN_ROLE,                       configurator_);
+
+        // Facets onboarding
+
+        controller.updateIntegrations(pauCfg.integrationIds);
 
         // Rate limits.
-        for (uint256 i; i < cfg.transferAssetRateLimits.length; ++i) {
-            TransferAssetRateLimit memory rl = cfg.transferAssetRateLimits[i];
 
-            IRateLimitsLike(deployed.paus[index].rateLimits).setRateLimitData(
+        IRateLimitsLike rateLimits = IRateLimitsLike(pau.rateLimits);
+
+        for (uint256 i; i < pauCfg.transferAssetRateLimits.length; ++i) {
+            TransferAssetRateLimit memory rl = pauCfg.transferAssetRateLimits[i];
+
+            rateLimits.setRateLimitData(
                 controller.transferAsset_getTransferRateLimitKey(rl.asset, _resolve(rl.destination, deployed)),
                 rl.maxAmount,
                 rl.slopePerDay / 1 days
             );
         }
 
-        for (uint256 i; i < cfg.erc4626RateLimits.length; ++i) {
-            ERC4626RateLimit memory rl = cfg.erc4626RateLimits[i];
+        for (uint256 i; i < pauCfg.erc4626RateLimits.length; ++i) {
+            ERC4626RateLimit memory rl = pauCfg.erc4626RateLimits[i];
 
             address token = _resolve(rl.token, deployed);
 
-            IRateLimitsLike(deployed.paus[index].rateLimits).setRateLimitData(
+            rateLimits.setRateLimitData(
                 controller.erc4626_getDepositRateLimitKey(token, rl.asset),
                 rl.depositMaxAmount,
                 rl.depositSlopePerDay / 1 days
             );
-            IRateLimitsLike(deployed.paus[index].rateLimits).setRateLimitData(
+            rateLimits.setRateLimitData(
                 controller.erc4626_getWithdrawRateLimitKey(token),
                 rl.withdrawMaxAmount,
                 rl.withdrawSlopePerDay / 1 days
@@ -280,10 +294,10 @@ abstract contract DeploySparkPrimeVaultBase {
             );
         }
 
-        for (uint256 i; i < cfg.sparkVaultRateLimits.length; ++i) {
-            SparkVaultRateLimit memory rl = cfg.sparkVaultRateLimits[i];
+        for (uint256 i; i < pauCfg.sparkVaultRateLimits.length; ++i) {
+            SparkVaultRateLimit memory rl = pauCfg.sparkVaultRateLimits[i];
 
-            IRateLimitsLike(deployed.paus[index].rateLimits).setRateLimitData(
+            rateLimits.setRateLimitData(
                 controller.sparkVault_getTakeRateLimitKey(_resolve(rl.sparkVault, deployed)),
                 rl.maxAmount,
                 rl.slopePerDay / 1 days
