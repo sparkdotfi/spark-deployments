@@ -8,6 +8,8 @@ import { Test, Vm } from "../../lib/forge-std/src/Test.sol";
 
 import { IAccessControl } from "../../lib/spark-prime-vault/lib/oz/contracts/access/IAccessControl.sol";
 
+import { Ethereum } from "../../lib/spark-prime-vault/lib/spark-address-registry/src/Ethereum.sol";
+
 import { SparkPrimeVault } from "../../lib/spark-prime-vault/src/SparkPrimeVault.sol";
 
 import { DeployPASBase, PASInstance } from "../../lib/spark-pas-deploy/deploy/Deploy.sol";
@@ -291,11 +293,11 @@ contract SparkPrimeVaultConfigurationTests is ConfigurationTestBase {
         SparkPrimeVaultConfig memory cfg = _parseConfig(config, pauNames);
 
         assertEq(cfg.chainId,        1);
-        assertEq(cfg.pauFactory,     0x60eB26db57bD058B6D742a1f6350A7FFeAb0681E);
+        assertEq(cfg.pauFactory,     Ethereum.SPARK_PAU_FACTORY);
         assertEq(cfg.allocatorAgent, 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38);
         assertEq(cfg.configurator,   0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38);
 
-        assertEq(cfg.vault.savingsVaultV2,         0x28B3a8fb53B741A8Fd78c0fb9A6B2393d896a43d);
+        assertEq(cfg.vault.savingsVaultV2,         Ethereum.SPARK_VAULT_V2_SPUSDC);
         assertEq(cfg.vault.name,                   "Spark Prime USDC");
         assertEq(cfg.vault.symbol,                 "spPrime");
         assertEq(cfg.vault.admin,                  0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38);
@@ -311,41 +313,48 @@ contract SparkPrimeVaultConfigurationTests is ConfigurationTestBase {
         assertEq(cfg.vault.redeemFeeSetter,        0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38);
         assertEq(cfg.vault.lossManager,            0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38);
 
-        assertEq(cfg.paus[0].admin,                                    0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38);
-        assertEq(cfg.paus[0].integrationIds.length,                    3);
-        assertEq(cfg.paus[0].integrationIds[0],                        "TRANSFER_ASSET_FACET");
-        assertEq(cfg.paus[0].integrationIds[1],                        "ERC4626_FACET");
-        assertEq(cfg.paus[0].integrationIds[2],                        "SPARK_VAULT_FACET");
-        assertEq(cfg.paus[0].transferAssetRateLimits.length,           1);
-        assertEq(cfg.paus[0].erc4626RateLimits.length,                 2);
-        assertEq(cfg.paus[0].sparkVaultRateLimits.length,              1);
-        assertEq(cfg.paus[0].transferAssetRateLimits[0].asset,         0x28B3a8fb53B741A8Fd78c0fb9A6B2393d896a43d);
-        assertEq(cfg.paus[0].transferAssetRateLimits[0].destination,   "spPrime");
-        assertEq(cfg.paus[0].transferAssetRateLimits[0].maxAmount,     1e18);
-        assertEq(cfg.paus[0].transferAssetRateLimits[0].slopePerDay,   0);
-        assertEq(cfg.paus[0].erc4626RateLimits[0].token,              "0x28B3a8fb53B741A8Fd78c0fb9A6B2393d896a43d");
-        assertEq(cfg.paus[0].erc4626RateLimits[0].asset,               0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
+        assertEq(cfg.paus[0].admin,                          0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38);
+        assertEq(cfg.paus[0].integrationIds.length,          3);
+        assertEq(cfg.paus[0].integrationIds[0],              "TRANSFER_ASSET_FACET");
+        assertEq(cfg.paus[0].integrationIds[1],              "ERC4626_FACET");
+        assertEq(cfg.paus[0].integrationIds[2],              "SPARK_VAULT_FACET");
+        assertEq(cfg.paus[0].transferAssetRateLimits.length, 1);
+        assertEq(cfg.paus[0].erc4626RateLimits.length,       2);
+        assertEq(cfg.paus[0].sparkVaultRateLimits.length,    1);
+
+        assertEq(cfg.paus[0].transferAssetRateLimits[0].asset,       Ethereum.SPARK_VAULT_V2_SPUSDC);
+        assertEq(cfg.paus[0].transferAssetRateLimits[0].destination, "spPrime");
+        assertEq(cfg.paus[0].transferAssetRateLimits[0].maxAmount,   1e18);
+        assertEq(cfg.paus[0].transferAssetRateLimits[0].slopePerDay, 0);
+
+        assertEq(cfg.paus[0].erc4626RateLimits[0].token,               vm.toString(Ethereum.SPARK_VAULT_V2_SPUSDC));
+        assertEq(cfg.paus[0].erc4626RateLimits[0].asset,               Ethereum.USDC);
         assertEq(cfg.paus[0].erc4626RateLimits[0].depositMaxAmount,    0);
         assertEq(cfg.paus[0].erc4626RateLimits[0].depositSlopePerDay,  0);
         assertEq(cfg.paus[0].erc4626RateLimits[0].withdrawMaxAmount,   0);
         assertEq(cfg.paus[0].erc4626RateLimits[0].withdrawSlopePerDay, 0);
         assertEq(cfg.paus[0].erc4626RateLimits[0].maxExchangeRate,     10);
-        assertEq(cfg.paus[0].erc4626RateLimits[1].token,              "0x28B3a8fb53B741A8Fd78c0fb9A6B2393d896a43d");
-        assertEq(cfg.paus[0].erc4626RateLimits[1].asset,               0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
+
+        assertEq(cfg.paus[0].erc4626RateLimits[1].token,               vm.toString(Ethereum.SPARK_VAULT_V2_SPUSDC));
+        assertEq(cfg.paus[0].erc4626RateLimits[1].asset,               Ethereum.USDC);
         assertEq(cfg.paus[0].erc4626RateLimits[1].depositMaxAmount,    0);
         assertEq(cfg.paus[0].erc4626RateLimits[1].depositSlopePerDay,  0);
         assertEq(cfg.paus[0].erc4626RateLimits[1].withdrawMaxAmount,   0);
         assertEq(cfg.paus[0].erc4626RateLimits[1].withdrawSlopePerDay, 0);
         assertEq(cfg.paus[0].erc4626RateLimits[1].maxExchangeRate,     10);
-        assertEq(cfg.paus[0].sparkVaultRateLimits[0].sparkVault,       "spPrime");
-        assertEq(cfg.paus[0].sparkVaultRateLimits[0].maxAmount,        1000000000000000000);
-        assertEq(cfg.paus[0].sparkVaultRateLimits[0].slopePerDay,      0);
 
-        assertEq(cfg.paus[1].admin,                                  0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38);
-        assertEq(cfg.paus[1].integrationIds.length,                  1);
-        assertEq(cfg.paus[1].integrationIds[0],                      "TRANSFER_ASSET_FACET");
-        assertEq(cfg.paus[1].transferAssetRateLimits.length,         1);
-        assertEq(cfg.paus[1].transferAssetRateLimits[0].asset,       0x28B3a8fb53B741A8Fd78c0fb9A6B2393d896a43d);
+        assertEq(cfg.paus[0].sparkVaultRateLimits[0].sparkVault,  "spPrime");
+        assertEq(cfg.paus[0].sparkVaultRateLimits[0].maxAmount,   1000000000000000000);
+        assertEq(cfg.paus[0].sparkVaultRateLimits[0].slopePerDay, 0);
+
+        assertEq(cfg.paus[1].admin,                          0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38);
+        assertEq(cfg.paus[1].integrationIds.length,          1);
+        assertEq(cfg.paus[1].integrationIds[0],              "TRANSFER_ASSET_FACET");
+        assertEq(cfg.paus[1].transferAssetRateLimits.length, 1);
+        assertEq(cfg.paus[1].erc4626RateLimits.length,       0);
+        assertEq(cfg.paus[1].sparkVaultRateLimits.length,    0);
+
+        assertEq(cfg.paus[1].transferAssetRateLimits[0].asset,       Ethereum.SPARK_VAULT_V2_SPUSDC);
         assertEq(cfg.paus[1].transferAssetRateLimits[0].destination, "spPrimePAUAlmProxy");
         assertEq(cfg.paus[1].transferAssetRateLimits[0].maxAmount,   1e18);
         assertEq(cfg.paus[1].transferAssetRateLimits[0].slopePerDay, 0);
