@@ -1,3 +1,15 @@
 [submodule "lib/forge-std"]
 	path = lib/forge-std
 	url = https://github.com/foundry-rs/forge-std
+[submodule "lib/spark-prime-vault"]
+	path = lib/spark-prime-vault
+	url = https://github.com/sparkdotfi/spark-prime-vault
+[submodule "lib/diamond-pau"]
+	path = lib/diamond-pau
+	url = https://github.com/sky-ecosystem/diamond-pau
+[submodule "lib/spark-address-registry"]
+	path = lib/spark-address-registry
+	url = https://github.com/sparkdotfi/spark-address-registry
+[submodule "lib/pas"]
+	path = lib/pas
+	url = https://github.com/sky-ecosystem/pas
