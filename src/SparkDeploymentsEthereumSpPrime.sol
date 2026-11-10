@@ -17,30 +17,12 @@ import { IERC4626Controller }       from "../lib/diamond-pau/src/facets/erc4626/
 import { ISparkVaultController }    from "../lib/diamond-pau/src/facets/spark-vault/ISparkVaultController.sol";
 import { ITransferAssetController } from "../lib/diamond-pau/src/facets/transfer-asset/ITransferAssetController.sol";
 
-import { BeamState }    from "../lib/pas/src/BeamState.sol";
-import { Configurator } from "../lib/pas/src/Configurator.sol";
-import { Timelock }     from "../lib/pas/src/timelock/Timelock.sol";
-
-import { PASInit }     from "../lib/pas/deploy/PASInit.sol";
-import { PASInstance } from "../lib/pas/deploy/PASInstance.sol";
-
-interface IERC20Like {
-
-    function decimals() external view returns (uint8);
-
-}
-
-interface IERC4626Like {
-
-    function asset() external view returns (address);
-
-}
-
 /**
  * @title  SparkDeploymentsEthereumSpPrime
- * @notice Single use deployment spell for PAS, Spark Prime Vault (spPrime) and its two PAU stacks
+ * @notice Single use deployment spell for Spark Prime Vault (spPrime) and its two PAU stacks
  *         (spPrimePAU and flcPAU) on Ethereum mainnet. The constructor deploys, configures and
  *         hands every contract over to its final owners. The spell holds no role afterwards.
+ *         Requires PAS, deployed by SparkDeploymentsEthereumPAS.
  */
 contract SparkDeploymentsEthereumSpPrime {
 
@@ -62,16 +44,6 @@ contract SparkDeploymentsEthereumSpPrime {
     bytes32 internal constant TRANSFER_ASSET_FACET = "TRANSFER_ASSET_FACET";
     bytes32 internal constant ERC4626_FACET        = "ERC4626_FACET";
     bytes32 internal constant SPARK_VAULT_FACET    = "SPARK_VAULT_FACET";
-
-    // PAS CONFIG
-
-    // TODO: Replace with the final PAS addresses.
-    address internal constant PAS_OWNER        = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
-    address internal constant PAS_CORE_COUNCIL = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
-    address internal constant PAS_CANCELLER    = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
-    address internal constant PAS_PAUSER       = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
-
-    uint256 internal constant PAS_MIN_DELAY = 100_000;
 
     // ADMINISTERED AGENT
 
@@ -140,10 +112,6 @@ contract SparkDeploymentsEthereumSpPrime {
     /*** Deployed contracts                                                                     ***/
     /**********************************************************************************************/
 
-    address public immutable PAS_BEAM_STATE;
-    address public immutable PAS_CONFIGURATOR;
-    address public immutable PAS_TIMELOCK;
-
     address public immutable SPPRIME;
 
     address public immutable SPPRIME_PAU_ACCESS_CONTROLS;
@@ -160,16 +128,10 @@ contract SparkDeploymentsEthereumSpPrime {
     /*** Constructor                                                                            ***/
     /**********************************************************************************************/
 
-    constructor(address pauFactory, address spPrimeImplementation) {
-        _assertPreconditions(pauFactory, spPrimeImplementation);
+    constructor(address pauFactory, address spPrimeImplementation, address pasConfigurator) {
+        _assertPreconditions(pauFactory, spPrimeImplementation, pasConfigurator);
 
-        // Step 1: Deploy PAS with the spell as temporary owner
-
-        PAS_BEAM_STATE   = address(new BeamState());
-        PAS_CONFIGURATOR = address(new Configurator(PAS_BEAM_STATE));
-        PAS_TIMELOCK     = address(new Timelock(PAS_MIN_DELAY, address(this)));
-
-        // Step 2: Deploy spPrime with the spell as temporary admin
+        // Step 1: Deploy spPrime with the spell as temporary admin
 
         SPPRIME = address(new ERC1967Proxy(
             spPrimeImplementation,
@@ -187,7 +149,7 @@ contract SparkDeploymentsEthereumSpPrime {
             )
         ));
 
-        // Step 3: Deploy the PAU stacks with the spell as temporary admin
+        // Step 2: Deploy the PAU stacks with the spell as temporary admin
 
         SPPRIME_PAU_CONTROLLER      = IPAUFactory(pauFactory).deployPAU(address(this), SPPRIME_PAU_SALT);
         SPPRIME_PAU_ACCESS_CONTROLS = IController(SPPRIME_PAU_CONTROLLER).accessControls();
@@ -199,16 +161,13 @@ contract SparkDeploymentsEthereumSpPrime {
         FLC_PAU_ALM_PROXY       = IController(FLC_PAU_CONTROLLER).proxy();
         FLC_PAU_RATE_LIMITS     = IController(FLC_PAU_CONTROLLER).rateLimits();
 
-        // Step 4: Configure PAS, spPrime and the PAU stacks
+        // Step 3: Configure spPrime and the PAU stacks
 
-        _configurePAS();
         _configureSpPrime();
-        _configureSpPrimePAU();
-        _configureFlcPAU();
+        _configureSpPrimePAU(pasConfigurator);
+        _configureFlcPAU(pasConfigurator);
 
-        // Step 5: Hand admin rights over and revoke the spell's admin role
-
-        _handoffPAS();
+        // Step 4: Hand admin rights over and revoke the spell's admin role
 
         _handoff(SPPRIME, SPPRIME_ADMIN);
 
@@ -224,26 +183,6 @@ contract SparkDeploymentsEthereumSpPrime {
     /**********************************************************************************************/
     /*** Configuration helpers                                                                  ***/
     /**********************************************************************************************/
-
-    function _configurePAS() internal {
-        address[] memory cancellers = new address[](1);
-        cancellers[0] = PAS_CANCELLER;
-
-        address[] memory pausers = new address[](1);
-        pausers[0] = PAS_PAUSER;
-
-        PASInit.init({
-            pasInstance : PASInstance({
-                beamState    : PAS_BEAM_STATE,
-                configurator : PAS_CONFIGURATOR,
-                timelock     : PAS_TIMELOCK
-            }),
-            minDelay    : PAS_MIN_DELAY,
-            coreCouncil : PAS_CORE_COUNCIL,
-            cancellers  : cancellers,
-            pausers     : pausers
-        });
-    }
 
     function _configureSpPrime() internal {
         ISparkPrimeVault spPrime = ISparkPrimeVault(SPPRIME);
@@ -261,14 +200,15 @@ contract SparkDeploymentsEthereumSpPrime {
         spPrime.grantRole(spPrime.TAKER_ROLE(), SPPRIME_PAU_ALM_PROXY);
     }
 
-    function _configureSpPrimePAU() internal {
+    function _configureSpPrimePAU(address pasConfigurator) internal {
         // Configure the PAU roles
 
         _configurePAURoles(
             SPPRIME_PAU_ACCESS_CONTROLS,
             SPPRIME_PAU_ALM_PROXY,
             SPPRIME_PAU_CONTROLLER,
-            SPPRIME_PAU_RATE_LIMITS
+            SPPRIME_PAU_RATE_LIMITS,
+            pasConfigurator
         );
 
         // Facet onboarding
@@ -319,14 +259,15 @@ contract SparkDeploymentsEthereumSpPrime {
         );
     }
 
-    function _configureFlcPAU() internal {
+    function _configureFlcPAU(address pasConfigurator) internal {
         // Configure the PAU roles
 
         _configurePAURoles(
             FLC_PAU_ACCESS_CONTROLS,
             FLC_PAU_ALM_PROXY,
             FLC_PAU_CONTROLLER,
-            FLC_PAU_RATE_LIMITS
+            FLC_PAU_RATE_LIMITS,
+            pasConfigurator
         );
 
         // Facet onboarding
@@ -352,7 +293,8 @@ contract SparkDeploymentsEthereumSpPrime {
         address accessControls,
         address almProxy,
         address controller,
-        address rateLimits
+        address rateLimits,
+        address pasConfigurator
     )
         internal
     {
@@ -362,23 +304,13 @@ contract SparkDeploymentsEthereumSpPrime {
         IAccessControls(accessControls).grantRole(ALLOCATOR_ROLE, ADMINISTERED_AGENT);
 
         // The PAS Configurator administers the AccessControls and the RateLimits.
-        IAccessControls(accessControls).grantRole(DEFAULT_ADMIN_ROLE, PAS_CONFIGURATOR);
-        IRateLimits(rateLimits).grantRole(DEFAULT_ADMIN_ROLE,         PAS_CONFIGURATOR);
+        IAccessControls(accessControls).grantRole(DEFAULT_ADMIN_ROLE, pasConfigurator);
+        IRateLimits(rateLimits).grantRole(DEFAULT_ADMIN_ROLE,         pasConfigurator);
     }
 
     /**********************************************************************************************/
     /*** Handoff                                                                                ***/
     /**********************************************************************************************/
-
-    function _handoffPAS() internal {
-        BeamState(PAS_BEAM_STATE).rely(PAS_OWNER);
-        BeamState(PAS_BEAM_STATE).deny(address(this));
-
-        require(BeamState(PAS_BEAM_STATE).wards(PAS_OWNER)     == 1, "SparkDeploymentsEthereumSpPrime/beam-state-owner-not-set");
-        require(BeamState(PAS_BEAM_STATE).wards(address(this)) == 0, "SparkDeploymentsEthereumSpPrime/spell-still-beam-state-ward");
-
-        _handoff(PAS_TIMELOCK, PAS_OWNER);
-    }
 
     function _handoff(address target, address admin) internal {
         IAccessControls(target).grantRole(DEFAULT_ADMIN_ROLE,  admin);
@@ -398,12 +330,19 @@ contract SparkDeploymentsEthereumSpPrime {
     /*** Assertions                                                                             ***/
     /**********************************************************************************************/
 
-    function _assertPreconditions(address pauFactory, address spPrimeImplementation) internal view {
+    function _assertPreconditions(
+        address pauFactory,
+        address spPrimeImplementation,
+        address pasConfigurator
+    )
+        internal view
+    {
         require(block.chainid == ETHEREUM_MAINNET, "SparkDeploymentsEthereumSpPrime/invalid-chain-id");
 
         // Guards against a wrong constructor argument or an unfilled placeholder.
         require(spPrimeImplementation.code.length > 0, "SparkDeploymentsEthereumSpPrime/no-spprime-implementation");
         require(pauFactory.code.length            > 0, "SparkDeploymentsEthereumSpPrime/no-pau-factory");
+        require(pasConfigurator.code.length       > 0, "SparkDeploymentsEthereumSpPrime/no-pas-configurator");
         require(PAU_BEACON.code.length            > 0, "SparkDeploymentsEthereumSpPrime/no-pau-beacon");
         require(ADMINISTERED_AGENT.code.length    > 0, "SparkDeploymentsEthereumSpPrime/no-administered-agent");
 
