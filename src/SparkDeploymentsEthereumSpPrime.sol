@@ -52,13 +52,13 @@ contract SparkDeploymentsEthereumSpPrime {
 
     // SPARK PRIME VAULT CONFIG
 
-    // TODO: Replace with the final owner addresses.
-    address internal constant SPPRIME_ADMIN     = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
-    address internal constant PAUSER            = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
-    address internal constant UNPAUSER          = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
-    address internal constant OPERATOR          = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
-    address internal constant REDEEM_FEE_SETTER = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
-    address internal constant LOSS_MANAGER      = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
+    // TODO: Replace with the final addresses.
+    address internal constant SPPRIME_ADMIN             = address(1);
+    address internal constant SPPRIME_PAUSER            = address(2);
+    address internal constant SPPRIME_UNPAUSER          = address(3);
+    address internal constant SPPRIME_OPERATOR          = address(4);
+    address internal constant SPPRIME_REDEEM_FEE_SETTER = address(5);
+    address internal constant SPPRIME_LOSS_MANAGER      = address(6);
 
     address internal constant SPUSDC = Ethereum.SPARK_VAULT_V2_SPUSDC;
 
@@ -75,8 +75,8 @@ contract SparkDeploymentsEthereumSpPrime {
 
     // SPPRIME PAU CONFIG
 
-    // TODO: Replace with the final owner address.
-    address internal constant SPPRIME_PAU_ADMIN = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
+    // TODO: Replace with the final address.
+    address internal constant SPPRIME_PAU_ADMIN = address(7);
 
     bytes32 internal constant SPPRIME_PAU_SALT = "SPPRIME_PAU";
 
@@ -99,8 +99,8 @@ contract SparkDeploymentsEthereumSpPrime {
 
     // FLC PAU CONFIG
 
-    // TODO: Replace with the final owner address.
-    address internal constant FLC_PAU_ADMIN = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
+    // TODO: Replace with the final address.
+    address internal constant FLC_PAU_ADMIN = address(8);
 
     bytes32 internal constant FLC_PAU_SALT = "FLC_PAU";
 
@@ -190,11 +190,11 @@ contract SparkDeploymentsEthereumSpPrime {
         spPrime.setVSRBounds(MIN_VSR, MAX_VSR);
         spPrime.setMaxRedeemFeeRate(MAX_REDEEM_FEE_RATE);
 
-        spPrime.grantRole(spPrime.PAUSER_ROLE(),            PAUSER);
-        spPrime.grantRole(spPrime.UNPAUSER_ROLE(),          UNPAUSER);
-        spPrime.grantRole(spPrime.OPERATOR_ROLE(),          OPERATOR);
-        spPrime.grantRole(spPrime.REDEEM_FEE_SETTER_ROLE(), REDEEM_FEE_SETTER);
-        spPrime.grantRole(spPrime.LOSS_MANAGER_ROLE(),      LOSS_MANAGER);
+        spPrime.grantRole(spPrime.PAUSER_ROLE(),            SPPRIME_PAUSER);
+        spPrime.grantRole(spPrime.UNPAUSER_ROLE(),          SPPRIME_UNPAUSER);
+        spPrime.grantRole(spPrime.OPERATOR_ROLE(),          SPPRIME_OPERATOR);
+        spPrime.grantRole(spPrime.REDEEM_FEE_SETTER_ROLE(), SPPRIME_REDEEM_FEE_SETTER);
+        spPrime.grantRole(spPrime.LOSS_MANAGER_ROLE(),      SPPRIME_LOSS_MANAGER);
 
         // The spPrimePAU pulls spUSDC out of spPrime through its ALMProxy.
         spPrime.grantRole(spPrime.TAKER_ROLE(), SPPRIME_PAU_ALM_PROXY);

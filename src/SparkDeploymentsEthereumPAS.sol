@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.34;
 
+import { Ethereum } from "../lib/spark-address-registry/src/Ethereum.sol";
+
 import { BeamState }    from "../lib/pas/src/BeamState.sol";
 import { Configurator } from "../lib/pas/src/Configurator.sol";
 import { Timelock }     from "../lib/pas/src/timelock/Timelock.sol";
@@ -28,13 +30,14 @@ contract SparkDeploymentsEthereumPAS {
 
     // PAS CONFIG
 
-    // TODO: Replace with the final PAS addresses.
-    address internal constant PAS_OWNER        = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
-    address internal constant PAS_CORE_COUNCIL = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
-    address internal constant PAS_CANCELLER    = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
-    address internal constant PAS_PAUSER       = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
+    address internal constant PAS_OWNER = Ethereum.SPARK_PROXY;  // BeamState ward and Timelock admin
 
-    uint256 internal constant PAS_MIN_DELAY = 100_000;
+    // TODO: Replace with the final addresses.
+    address internal constant PAS_CORE_COUNCIL = address(1);  // aBEAM Multisig
+    address internal constant PAS_CANCELLER1   = address(2);  // Spark Low Threshold Multisig
+    address internal constant PAS_CANCELLER2   = address(3);  // Soter Labs Revoker Multisig
+
+    uint256 internal constant PAS_MIN_DELAY = 5 days;
 
     /**********************************************************************************************/
     /*** Deployed contracts                                                                     ***/
@@ -43,6 +46,7 @@ contract SparkDeploymentsEthereumPAS {
     address public immutable PAS_BEAM_STATE;
     address public immutable PAS_CONFIGURATOR;
     address public immutable PAS_TIMELOCK;
+    address public immutable PAS_MOM;
 
     /**********************************************************************************************/
     /*** Constructor                                                                            ***/
@@ -56,6 +60,9 @@ contract SparkDeploymentsEthereumPAS {
         PAS_BEAM_STATE   = address(new BeamState());
         PAS_CONFIGURATOR = address(new Configurator(PAS_BEAM_STATE));
         PAS_TIMELOCK     = address(new Timelock(PAS_MIN_DELAY, address(this)));
+
+        // TODO: Deploy the Sky PAS Mom, placeholder address until then.
+        PAS_MOM = address(4); // use deployMom from PASDeploy.sol
 
         // Step 2: Configure PAS
 
@@ -71,11 +78,13 @@ contract SparkDeploymentsEthereumPAS {
     /**********************************************************************************************/
 
     function _configurePAS() internal {
-        address[] memory cancellers = new address[](1);
-        cancellers[0] = PAS_CANCELLER;
+        // The Core Council is also a canceller, PASInit.init grants it directly.
+        address[] memory cancellers = new address[](2);
+        cancellers[0] = PAS_CANCELLER1;
+        cancellers[1] = PAS_CANCELLER2;
 
         address[] memory pausers = new address[](1);
-        pausers[0] = PAS_PAUSER;
+        pausers[0] = PAS_MOM;
 
         PASInit.init({
             pasInstance : PASInstance({
@@ -88,6 +97,8 @@ contract SparkDeploymentsEthereumPAS {
             cancellers  : cancellers,
             pausers     : pausers
         });
+
+        // TODO: Configure the Sky PAS Mom. Use initMom from PASInit.sol
     }
 
     /**********************************************************************************************/

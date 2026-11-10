@@ -3,6 +3,8 @@ pragma solidity ^0.8.34;
 
 import { Test, Vm } from "../lib/forge-std/src/Test.sol";
 
+import { Ethereum } from "../lib/spark-address-registry/src/Ethereum.sol";
+
 import { IAccessControl } from "../lib/pas/lib/openzeppelin-contracts/contracts/access/IAccessControl.sol";
 import { Pausable }       from "../lib/pas/lib/openzeppelin-contracts/contracts/utils/Pausable.sol";
 
@@ -22,19 +24,21 @@ abstract contract SparkDeploymentsEthereumPASTestBase is Test {
     uint8 internal constant PAS_ROLE_DELAYED   = 1;
     uint8 internal constant PAS_ROLE_IMMEDIATE = 2;
 
-    // TODO: Replace with the final PAS addresses, must match the spell.
-    address internal constant PAS_OWNER        = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
-    address internal constant PAS_CORE_COUNCIL = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
-    address internal constant PAS_CANCELLER    = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
-    address internal constant PAS_PAUSER       = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
+    address internal constant PAS_OWNER = Ethereum.SPARK_PROXY;  // BeamState ward and Timelock admin
 
-    uint256 internal constant PAS_MIN_DELAY = 100_000;
+    // TODO: Replace with the final addresses, must match the spell.
+    address internal constant PAS_CORE_COUNCIL = address(1);  // aBEAM Multisig
+    address internal constant PAS_CANCELLER1   = address(2);  // Spark Low Threshold Multisig
+    address internal constant PAS_CANCELLER2   = address(3);  // Soter Labs Revoker Multisig
+
+    uint256 internal constant PAS_MIN_DELAY = 5 days;
 
     SparkDeploymentsEthereumPAS internal spell;
 
     address internal pasBeamState;
     address internal pasConfigurator;
     address internal pasTimelock;
+    address internal pasMom;
 
     address internal user = makeAddr("user");
 
@@ -56,11 +60,14 @@ abstract contract SparkDeploymentsEthereumPASTestBase is Test {
         pasBeamState    = spell.PAS_BEAM_STATE();
         pasConfigurator = spell.PAS_CONFIGURATOR();
         pasTimelock     = spell.PAS_TIMELOCK();
+        pasMom          = spell.PAS_MOM();
 
         vm.label(address(spell),  "spell");
         vm.label(pasBeamState,    "pas.beamState");
         vm.label(pasConfigurator, "pas.configurator");
         vm.label(pasTimelock,     "pas.timelock");
+        vm.label(pasMom,          "pas.mom");
+        vm.label(PAS_OWNER,       "pas.owner");
     }
 
     /**********************************************************************************************/
@@ -101,6 +108,7 @@ contract SparkDeploymentsEthereumPASTest_SpellPayload is SparkDeploymentsEthereu
     }
 
     function test_spell_deployedAddresses() external view {
+        // TODO: Add pasMom once the spell deploys the Sky PAS Mom.
         address[3] memory deployed = [pasBeamState, pasConfigurator, pasTimelock];
 
         for (uint256 i; i < deployed.length; ++i) {
@@ -148,8 +156,9 @@ contract SparkDeploymentsEthereumPASTest_PAS is SparkDeploymentsEthereumPASTestB
 
         // BeamState admin: PAS owner only
 
-        assertEq(beamState.wards(PAS_OWNER),      1);
-        assertEq(beamState.wards(address(spell)), 0);
+        assertEq(beamState.wards(PAS_OWNER),        1);
+        assertEq(beamState.wards(PAS_CORE_COUNCIL), 0);
+        assertEq(beamState.wards(address(spell)),   0);
 
         Vm.Log[] memory relyLogs = _getEvents(pasBeamState, BeamState.Rely.selector);
         Vm.Log[] memory denyLogs = _getEvents(pasBeamState, BeamState.Deny.selector);
@@ -244,7 +253,7 @@ contract SparkDeploymentsEthereumPASTest_PAS is SparkDeploymentsEthereumPASTestB
         }
     }
 
-    // The spell does not run PASInit.initExtras, so nothing is onboarded to BeamState yet.
+    // No BeamState configuration at launch: the spell does not run PASInit.initExtras.
     function test_beamState_extras() external view {
         BeamState beamState = BeamState(pasBeamState);
 
@@ -279,11 +288,16 @@ contract SparkDeploymentsEthereumPASTest_PAS is SparkDeploymentsEthereumPASTestB
         assertEq(timelock.hasRole(DEFAULT_ADMIN_ROLE, address(spell)), false);
         assertEq(timelock.hasRole(DEFAULT_ADMIN_ROLE, pasTimelock),    false);  // Proposers cannot change admin-only configurations
 
-        assertEq(timelock.hasRole(timelock.PROPOSER_ROLE(),  PAS_CORE_COUNCIL), true);
+        assertEq(timelock.hasRole(timelock.PROPOSER_ROLE(), PAS_CORE_COUNCIL), true);
+        assertEq(timelock.hasRole(timelock.PROPOSER_ROLE(), PAS_CANCELLER1),   false);
+        assertEq(timelock.hasRole(timelock.PROPOSER_ROLE(), PAS_CANCELLER2),   false);
+
         assertEq(timelock.hasRole(timelock.CANCELLER_ROLE(), PAS_CORE_COUNCIL), true);
-        assertEq(timelock.hasRole(timelock.CANCELLER_ROLE(), PAS_CANCELLER),    true);
-        assertEq(timelock.hasRole(timelock.PAUSER_ROLE(),    PAS_PAUSER),       true);
-        assertEq(timelock.hasRole(timelock.EXECUTOR_ROLE(),  address(0)),       true);  // Anyone can execute
+        assertEq(timelock.hasRole(timelock.CANCELLER_ROLE(), PAS_CANCELLER1),   true);
+        assertEq(timelock.hasRole(timelock.CANCELLER_ROLE(), PAS_CANCELLER2),   true);
+
+        assertEq(timelock.hasRole(timelock.PAUSER_ROLE(),   pasMom),     true);
+        assertEq(timelock.hasRole(timelock.EXECUTOR_ROLE(), address(0)), true);  // Anyone can execute
     }
 
     function test_timelock_events() external view {
@@ -291,9 +305,7 @@ contract SparkDeploymentsEthereumPASTest_PAS is SparkDeploymentsEthereumPASTestB
 
         Vm.Log[] memory allEvents = _getEvents(pasTimelock, bytes32(0));
 
-        // TODO: The CANCELLER grant to PAS_CANCELLER emits no event while it shares the Core Council
-        //       placeholder, add it once the addresses differ.
-        assertEq(allEvents.length, 10);
+        assertEq(allEvents.length, 12);
 
         assertEq(allEvents[0].topics[0],                            IAccessControl.RoleGranted.selector);
         assertEq(allEvents[0].topics[1],                            DEFAULT_ADMIN_ROLE);
@@ -332,19 +344,262 @@ contract SparkDeploymentsEthereumPASTest_PAS is SparkDeploymentsEthereumPASTestB
         assertEq(address(uint160(uint256(allEvents[6].topics[3]))), address(spell));
 
         assertEq(allEvents[7].topics[0],                            IAccessControl.RoleGranted.selector);
-        assertEq(allEvents[7].topics[1],                            timelock.PAUSER_ROLE());
-        assertEq(address(uint160(uint256(allEvents[7].topics[2]))), PAS_PAUSER);
+        assertEq(allEvents[7].topics[1],                            timelock.CANCELLER_ROLE());
+        assertEq(address(uint160(uint256(allEvents[7].topics[2]))), PAS_CANCELLER1);
         assertEq(address(uint160(uint256(allEvents[7].topics[3]))), address(spell));
 
         assertEq(allEvents[8].topics[0],                            IAccessControl.RoleGranted.selector);
-        assertEq(allEvents[8].topics[1],                            DEFAULT_ADMIN_ROLE);
-        assertEq(address(uint160(uint256(allEvents[8].topics[2]))), PAS_OWNER);
+        assertEq(allEvents[8].topics[1],                            timelock.CANCELLER_ROLE());
+        assertEq(address(uint160(uint256(allEvents[8].topics[2]))), PAS_CANCELLER2);
         assertEq(address(uint160(uint256(allEvents[8].topics[3]))), address(spell));
 
-        assertEq(allEvents[9].topics[0],                            IAccessControl.RoleRevoked.selector);
-        assertEq(allEvents[9].topics[1],                            DEFAULT_ADMIN_ROLE);
-        assertEq(address(uint160(uint256(allEvents[9].topics[2]))), address(spell));
+        assertEq(allEvents[9].topics[0],                            IAccessControl.RoleGranted.selector);
+        assertEq(allEvents[9].topics[1],                            timelock.PAUSER_ROLE());
+        assertEq(address(uint160(uint256(allEvents[9].topics[2]))), pasMom);
         assertEq(address(uint160(uint256(allEvents[9].topics[3]))), address(spell));
+
+        assertEq(allEvents[10].topics[0],                            IAccessControl.RoleGranted.selector);
+        assertEq(allEvents[10].topics[1],                            DEFAULT_ADMIN_ROLE);
+        assertEq(address(uint160(uint256(allEvents[10].topics[2]))), PAS_OWNER);
+        assertEq(address(uint160(uint256(allEvents[10].topics[3]))), address(spell));
+
+        assertEq(allEvents[11].topics[0],                            IAccessControl.RoleRevoked.selector);
+        assertEq(allEvents[11].topics[1],                            DEFAULT_ADMIN_ROLE);
+        assertEq(address(uint160(uint256(allEvents[11].topics[2]))), address(spell));
+        assertEq(address(uint160(uint256(allEvents[11].topics[3]))), address(spell));
+    }
+
+}
+
+contract SparkDeploymentsEthereumPASTest_E2E is SparkDeploymentsEthereumPASTestBase {
+
+    function setUp() public override {
+        super.setUp();
+
+        vm.label(user, "user");
+    }
+
+    // stop is an IMMEDIATE action: the Core Council calls it directly
+    function test_beamState_stop_onlyCouncil() external {
+        BeamState beamState = BeamState(pasBeamState);
+
+        assertEq(beamState.actionsRoles(BeamState.stop.selector), bytes32(uint256(1) << PAS_ROLE_IMMEDIATE));
+
+        // The Timelock only holds the DELAYED role, so it cannot call it
+        vm.prank(pasTimelock);
+        vm.expectRevert("BeamState/role-not-authorized");
+        beamState.stop();
+
+        vm.prank(user);
+        vm.expectRevert("BeamState/role-not-authorized");
+        beamState.stop();
+
+        assertEq(beamState.stopped(), false);
+
+        vm.prank(PAS_CORE_COUNCIL);
+        beamState.stop();
+
+        assertEq(beamState.stopped(), true);
+    }
+
+    // setHop is a DELAYED action: it has to go through the Timelock
+    function test_beamState_setHop_onlyTimelock() external {
+        BeamState beamState = BeamState(pasBeamState);
+        Timelock  timelock  = Timelock(payable(pasTimelock));
+
+        assertEq(beamState.actionsRoles(BeamState.setHop.selector), bytes32(uint256(1) << PAS_ROLE_DELAYED));
+
+        // The Core Council only holds the IMMEDIATE role, so it cannot call it directly
+        vm.prank(PAS_CORE_COUNCIL);
+        vm.expectRevert("BeamState/role-not-authorized");
+        beamState.setHop(address(0), 1 hours);
+
+        vm.prank(user);
+        vm.expectRevert("BeamState/role-not-authorized");
+        beamState.setHop(address(0), 1 hours);
+
+        assertEq(beamState.getHop(address(0)), 0);
+
+        // The Core Council proposes the call through the Timelock
+
+        ( address[] memory targets, uint256[] memory values, bytes[] memory payloads ) =
+            _singleCall(pasBeamState, abi.encodeCall(beamState.setHop, (address(0), 1 hours)));
+
+        bytes32 id = timelock.hashOperationBatch(targets, values, payloads, bytes32(0), bytes32(0));
+
+        vm.prank(PAS_CORE_COUNCIL);
+        timelock.scheduleBatch(targets, values, payloads, bytes32(0), bytes32(0), PAS_MIN_DELAY);
+
+        assertEq(timelock.isOperationReady(id), false);
+
+        // The call can not be executed before the delay
+        skip(PAS_MIN_DELAY - 1);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TimelockController.TimelockUnexpectedOperationState.selector,
+                id,
+                bytes32(1 << uint8(TimelockController.OperationState.Ready))
+            )
+        );
+        timelock.executeBatch(targets, values, payloads, bytes32(0), bytes32(0));
+
+        skip(1);
+
+        assertEq(timelock.isOperationReady(id), true);
+
+        assertEq(beamState.getHop(address(0)), 0);
+
+        // Execution is permissionless, the Timelock is the caller into BeamState
+        vm.prank(user);
+        timelock.executeBatch(targets, values, payloads, bytes32(0), bytes32(0));
+
+        assertEq(beamState.getHop(address(0)), 1 hours);
+    }
+
+    // start is a DELAYED action: after an immediate stop it has to go through the Timelock
+    function test_beamState_start_onlyTimelock() external {
+        BeamState beamState = BeamState(pasBeamState);
+        Timelock  timelock  = Timelock(payable(pasTimelock));
+
+        vm.prank(PAS_CORE_COUNCIL);
+        beamState.stop();
+
+        assertEq(beamState.stopped(), true);
+
+        ( address[] memory targets, uint256[] memory values, bytes[] memory payloads ) =
+            _singleCall(pasBeamState, abi.encodeCall(beamState.start, ()));
+
+        vm.prank(PAS_CORE_COUNCIL);
+        timelock.scheduleBatch(targets, values, payloads, bytes32(0), bytes32(0), PAS_MIN_DELAY);
+
+        skip(PAS_MIN_DELAY);
+
+        vm.prank(user);
+        timelock.executeBatch(targets, values, payloads, bytes32(0), bytes32(0));
+
+        assertEq(beamState.stopped(), false);
+    }
+
+    // delCBeam is an IMMEDIATE action: the Core Council calls it directly, the Timelock is not authorized
+    function test_beamState_delCBeam_onlyCouncil() external {
+        BeamState beamState = BeamState(pasBeamState);
+        Timelock  timelock  = Timelock(payable(pasTimelock));
+
+        address cBeam = makeAddr("cBeam");
+
+        assertEq(beamState.actionsRoles(BeamState.addCBeam.selector), bytes32(uint256(1) << PAS_ROLE_DELAYED));
+        assertEq(beamState.actionsRoles(BeamState.delCBeam.selector), bytes32(uint256(1) << PAS_ROLE_IMMEDIATE));
+
+        // The cBeam is onboarded through the Timelock
+
+        ( address[] memory targets, uint256[] memory values, bytes[] memory payloads ) =
+            _singleCall(pasBeamState, abi.encodeCall(beamState.addCBeam, (cBeam)));
+
+        vm.prank(PAS_CORE_COUNCIL);
+        timelock.scheduleBatch(targets, values, payloads, bytes32(0), bytes32(0), PAS_MIN_DELAY);
+
+        skip(PAS_MIN_DELAY);
+
+        timelock.executeBatch(targets, values, payloads, bytes32(0), bytes32(0));
+
+        assertEq(beamState.cBeams(cBeam), 1);
+
+        // The Timelock only holds the DELAYED role, so it cannot remove it
+
+        vm.prank(pasTimelock);
+        vm.expectRevert("BeamState/role-not-authorized");
+        beamState.delCBeam(cBeam);
+
+        assertEq(beamState.cBeams(cBeam), 1);
+
+        vm.prank(PAS_CORE_COUNCIL);
+        beamState.delCBeam(cBeam);
+
+        assertEq(beamState.cBeams(cBeam), 0);
+    }
+
+    function test_timelock_pauserPauses() external {
+        Timelock timelock = Timelock(payable(pasTimelock));
+
+        bytes32 pauserRole = timelock.PAUSER_ROLE();
+
+        vm.prank(user);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user, pauserRole)
+        );
+        timelock.pause();
+
+        vm.prank(pasMom);
+        timelock.pause();
+
+        assertEq(timelock.paused(), true);
+
+        // Scheduling is blocked while paused
+
+        ( address[] memory targets, uint256[] memory values, bytes[] memory payloads ) =
+            _singleCall(pasBeamState, abi.encodeCall(BeamState.start, ()));
+
+        vm.prank(PAS_CORE_COUNCIL);
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        timelock.scheduleBatch(targets, values, payloads, bytes32(0), bytes32(0), PAS_MIN_DELAY);
+
+        // Only the PAS owner unpauses
+
+        vm.prank(PAS_OWNER);
+        timelock.unpause();
+
+        assertEq(timelock.paused(), false);
+    }
+
+    function test_timelock_cancellersCancel() external {
+        Timelock timelock = Timelock(payable(pasTimelock));
+
+        bytes32 cancellerRole = timelock.CANCELLER_ROLE();
+
+        address[3] memory cancellers = [PAS_CORE_COUNCIL, PAS_CANCELLER1, PAS_CANCELLER2];
+
+        for (uint256 i; i < cancellers.length; ++i) {
+            // A distinct payload per canceller, so each operation id differs
+            ( address[] memory targets, uint256[] memory values, bytes[] memory payloads ) =
+                _singleCall(pasBeamState, abi.encodeCall(BeamState.setHop, (address(0), (i + 1) * 1 hours)));
+
+            bytes32 id = timelock.hashOperationBatch(targets, values, payloads, bytes32(0), bytes32(0));
+
+            vm.prank(PAS_CORE_COUNCIL);
+            timelock.scheduleBatch(targets, values, payloads, bytes32(0), bytes32(0), PAS_MIN_DELAY);
+
+            assertEq(timelock.isOperationPending(id), true);
+
+            vm.prank(user);
+            vm.expectRevert(
+                abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user, cancellerRole)
+            );
+            timelock.cancel(id);
+
+            vm.prank(cancellers[i]);
+            timelock.cancel(id);
+
+            assertEq(timelock.isOperation(id), false);
+        }
+    }
+
+    function test_beamState_ownerAdministers() external {
+        vm.prank(PAS_OWNER);
+        BeamState(pasBeamState).rely(user);
+
+        assertEq(BeamState(pasBeamState).wards(user), 1);
+    }
+
+    function _singleCall(address target, bytes memory payload)
+        internal pure returns (address[] memory targets, uint256[] memory values, bytes[] memory payloads)
+    {
+        targets  = new address[](1);
+        values   = new uint256[](1);
+        payloads = new bytes[](1);
+
+        targets[0]  = target;
+        payloads[0] = payload;
     }
 
 }
