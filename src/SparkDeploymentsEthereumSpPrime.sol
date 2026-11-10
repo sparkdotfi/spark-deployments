@@ -93,9 +93,10 @@ contract SparkDeploymentsEthereumSpPrime {
     string internal constant NAME   = "Spark Prime USDC";
     string internal constant SYMBOL = "spPrime";
 
-    uint256 internal constant MIN_DEPOSIT              = 1e18;
-    uint256 internal constant MIN_DEPOSIT_CANCELLATION = 1e18;
-    uint256 internal constant MIN_REDEEM               = 1e18;
+    // TODO: Replace with the final values.
+    uint256 internal constant MIN_DEPOSIT              = 1_000e6;  // USDC
+    uint256 internal constant MIN_DEPOSIT_CANCELLATION = 1_000e6;  // spUSDC shares
+    uint256 internal constant MIN_REDEEM               = 1_000e6;  // spPrime shares
     uint256 internal constant MIN_VSR                  = 1e27;
     uint256 internal constant MAX_VSR                  = 1e27;
     uint256 internal constant MAX_REDEEM_FEE_RATE      = 1;
@@ -108,7 +109,7 @@ contract SparkDeploymentsEthereumSpPrime {
     bytes32 internal constant SPPRIME_PAU_SALT = "SPPRIME_PAU";
 
     // TransferAsset: spPrimePAU returns spUSDC to spPrime
-    uint256 internal constant SPPRIME_PAU_TRANSFER_MAX   = 1e18;
+    uint256 internal constant SPPRIME_PAU_TRANSFER_MAX   = 100_000_000e6;
     uint256 internal constant SPPRIME_PAU_TRANSFER_SLOPE = 0;
 
     // ERC4626: Wrap USDC into spUSDC and unwrap spUSDC into USDC
@@ -121,7 +122,7 @@ contract SparkDeploymentsEthereumSpPrime {
     uint256 internal constant SPUSDC_MAX_EXCHANGE_RATE_ASSETS = 10e6;
 
     // SparkVault: spUSDC taken out of spPrime
-    uint256 internal constant SPPRIME_PAU_TAKE_MAX   = 1e18;
+    uint256 internal constant SPPRIME_PAU_TAKE_MAX   = 100_000_000e6;
     uint256 internal constant SPPRIME_PAU_TAKE_SLOPE = 0;
 
     // FLC PAU CONFIG
@@ -132,7 +133,7 @@ contract SparkDeploymentsEthereumSpPrime {
     bytes32 internal constant FLC_PAU_SALT = "FLC_PAU";
 
     // TransferAsset: FLCPAU returns spUSDC to spPrimePAU ALMProxy
-    uint256 internal constant FLC_PAU_TRANSFER_MAX   = 1e18;
+    uint256 internal constant FLC_PAU_TRANSFER_MAX   = 100_000_000e6;
     uint256 internal constant FLC_PAU_TRANSFER_SLOPE = 0;
 
     /**********************************************************************************************/
