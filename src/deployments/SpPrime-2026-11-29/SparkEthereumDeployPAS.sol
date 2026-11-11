@@ -1,28 +1,28 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.34;
 
-import { Ethereum } from "../lib/spark-address-registry/src/Ethereum.sol";
+import { Ethereum } from "../../../lib/spark-address-registry/src/Ethereum.sol";
 
-import { BeamState }    from "../lib/pas/src/BeamState.sol";
-import { Configurator } from "../lib/pas/src/Configurator.sol";
-import { Timelock }     from "../lib/pas/src/timelock/Timelock.sol";
+import { BeamState }    from "../../../lib/pas/src/BeamState.sol";
+import { Configurator } from "../../../lib/pas/src/Configurator.sol";
+import { Timelock }     from "../../../lib/pas/src/timelock/Timelock.sol";
 
-import { PASInit }     from "../lib/pas/deploy/PASInit.sol";
-import { PASInstance } from "../lib/pas/deploy/PASInstance.sol";
+import { PASInit }     from "../../../lib/pas/deploy/PASInit.sol";
+import { PASInstance } from "../../../lib/pas/deploy/PASInstance.sol";
 
 /**
- * @title  SparkDeploymentsEthereumPAS
+ * @title  PAS
  * @notice Single use deployment spell for PAS (BeamState, Configurator and Timelock) on Ethereum
  *         mainnet. The constructor deploys, configures and hands every contract over to its final
  *         owners. The spell holds no role afterwards.
  */
-contract SparkDeploymentsEthereumPAS {
+contract SparkEthereumDeployPAS {
 
     /**********************************************************************************************/
     /*** Constants                                                                              ***/
     /**********************************************************************************************/
 
-    uint256 internal constant ETHEREUM_MAINNET = 1;
+    uint256 internal constant MAINNET = 1;
 
     // ROLES
 
@@ -30,12 +30,10 @@ contract SparkDeploymentsEthereumPAS {
 
     // PAS CONFIG
 
-    address internal constant PAS_OWNER = Ethereum.SPARK_PROXY;  // BeamState ward and Timelock admin
-
     // TODO: Replace with the final addresses.
-    address internal constant PAS_CORE_COUNCIL = address(1);  // aBEAM Multisig
-    address internal constant PAS_CANCELLER1   = address(2);  // Spark Low Threshold Multisig
-    address internal constant PAS_CANCELLER2   = address(3);  // Soter Labs Revoker Multisig
+    address internal constant ABEAM_MULTISIG = address(1);
+    address internal constant PAS_CANCELLER1 = address(2);  // Spark Low Threshold Multisig
+    address internal constant PAS_CANCELLER2 = address(3);  // Soter Labs Revoker Multisig
 
     uint256 internal constant PAS_MIN_DELAY = 5 days;
 
@@ -43,26 +41,34 @@ contract SparkDeploymentsEthereumPAS {
     /*** Deployed contracts                                                                     ***/
     /**********************************************************************************************/
 
-    address public immutable PAS_BEAM_STATE;
-    address public immutable PAS_CONFIGURATOR;
-    address public immutable PAS_TIMELOCK;
-    address public immutable PAS_MOM;
+    struct PASDeploymentReport {
+        address beamState;
+        address configurator;
+        address timelock;
+        address mom;
+    }
+
+    PASDeploymentReport internal _pasDeployment;
+
+    function pasDeployment() external view returns (PASDeploymentReport memory) {
+        return _pasDeployment;
+    }
 
     /**********************************************************************************************/
     /*** Constructor                                                                            ***/
     /**********************************************************************************************/
 
     constructor() {
-        require(block.chainid == ETHEREUM_MAINNET, "SparkDeploymentsEthereumPAS/invalid-chain-id");
+        require(block.chainid == MAINNET, "SparkEthereumDeployPAS/invalid-chain-id");
 
         // Step 1: Deploy PAS with the spell as temporary owner
 
-        PAS_BEAM_STATE   = address(new BeamState());
-        PAS_CONFIGURATOR = address(new Configurator(PAS_BEAM_STATE));
-        PAS_TIMELOCK     = address(new Timelock(PAS_MIN_DELAY, address(this)));
+        _pasDeployment.beamState    = address(new BeamState());
+        _pasDeployment.configurator = address(new Configurator(_pasDeployment.beamState));
+        _pasDeployment.timelock     = address(new Timelock(PAS_MIN_DELAY, address(this)));
 
         // TODO: Deploy the Sky PAS Mom, placeholder address until then.
-        PAS_MOM = address(4); // use deployMom from PASDeploy.sol
+        _pasDeployment.mom = address(4); // use deployMom from PASDeploy.sol
 
         // Step 2: Configure PAS
 
@@ -84,16 +90,16 @@ contract SparkDeploymentsEthereumPAS {
         cancellers[1] = PAS_CANCELLER2;
 
         address[] memory pausers = new address[](1);
-        pausers[0] = PAS_MOM;
+        pausers[0] = _pasDeployment.mom;
 
         PASInit.init({
             pasInstance : PASInstance({
-                beamState    : PAS_BEAM_STATE,
-                configurator : PAS_CONFIGURATOR,
-                timelock     : PAS_TIMELOCK
+                beamState    : _pasDeployment.beamState,
+                configurator : _pasDeployment.configurator,
+                timelock     : _pasDeployment.timelock
             }),
             minDelay    : PAS_MIN_DELAY,
-            coreCouncil : PAS_CORE_COUNCIL,
+            coreCouncil : ABEAM_MULTISIG,
             cancellers  : cancellers,
             pausers     : pausers
         });
@@ -106,24 +112,30 @@ contract SparkDeploymentsEthereumPAS {
     /**********************************************************************************************/
 
     function _handoffPAS() internal {
-        BeamState(PAS_BEAM_STATE).rely(PAS_OWNER);
-        BeamState(PAS_BEAM_STATE).deny(address(this));
+        BeamState(_pasDeployment.beamState).rely(Ethereum.SPARK_PROXY);
+        BeamState(_pasDeployment.beamState).deny(address(this));
 
-        require(BeamState(PAS_BEAM_STATE).wards(PAS_OWNER)     == 1, "SparkDeploymentsEthereumPAS/beam-state-owner-not-set");
-        require(BeamState(PAS_BEAM_STATE).wards(address(this)) == 0, "SparkDeploymentsEthereumPAS/spell-still-beam-state-ward");
+        require(
+            BeamState(_pasDeployment.beamState).wards(Ethereum.SPARK_PROXY) == 1,
+            "SparkEthereumDeployPAS/beam-state-owner-not-set"
+        );
+        require(
+            BeamState(_pasDeployment.beamState).wards(address(this)) == 0,
+            "SparkEthereumDeployPAS/spell-still-beam-state-ward"
+        );
 
-        Timelock timelock = Timelock(payable(PAS_TIMELOCK));
+        Timelock timelock = Timelock(payable(_pasDeployment.timelock));
 
-        timelock.grantRole(DEFAULT_ADMIN_ROLE,  PAS_OWNER);
+        timelock.grantRole(DEFAULT_ADMIN_ROLE,  Ethereum.SPARK_PROXY);
         timelock.revokeRole(DEFAULT_ADMIN_ROLE, address(this));
 
         require(
-            timelock.hasRole(DEFAULT_ADMIN_ROLE, PAS_OWNER),
-            "SparkDeploymentsEthereumPAS/admin-not-set"
+            timelock.hasRole(DEFAULT_ADMIN_ROLE, Ethereum.SPARK_PROXY),
+            "SparkEthereumDeployPAS/admin-not-set"
         );
         require(
             !timelock.hasRole(DEFAULT_ADMIN_ROLE, address(this)),
-            "SparkDeploymentsEthereumPAS/spell-still-admin"
+            "SparkEthereumDeployPAS/spell-still-admin"
         );
     }
 

@@ -1,22 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.34;
 
-import { Test, Vm } from "../lib/forge-std/src/Test.sol";
+import { Test, Vm } from "../../../../lib/forge-std/src/Test.sol";
 
-import { Ethereum } from "../lib/spark-address-registry/src/Ethereum.sol";
+import { Ethereum } from "../../../../lib/spark-address-registry/src/Ethereum.sol";
 
-import { IAccessControl } from "../lib/pas/lib/openzeppelin-contracts/contracts/access/IAccessControl.sol";
-import { Pausable }       from "../lib/pas/lib/openzeppelin-contracts/contracts/utils/Pausable.sol";
+import { IAccessControl } from "../../../../lib/pas/lib/openzeppelin-contracts/contracts/access/IAccessControl.sol";
+import { Pausable }       from "../../../../lib/pas/lib/openzeppelin-contracts/contracts/utils/Pausable.sol";
 
-import { TimelockController } from "../lib/pas/lib/openzeppelin-contracts/contracts/governance/TimelockController.sol";
+import { TimelockController } from "../../../../lib/pas/lib/openzeppelin-contracts/contracts/governance/TimelockController.sol";
 
-import { BeamState }    from "../lib/pas/src/BeamState.sol";
-import { Configurator } from "../lib/pas/src/Configurator.sol";
-import { Timelock }     from "../lib/pas/src/timelock/Timelock.sol";
+import { BeamState }    from "../../../../lib/pas/src/BeamState.sol";
+import { Configurator } from "../../../../lib/pas/src/Configurator.sol";
+import { Timelock }     from "../../../../lib/pas/src/timelock/Timelock.sol";
 
-import { SparkDeploymentsEthereumPAS } from "../src/SparkDeploymentsEthereumPAS.sol";
+import { SparkEthereumDeployPAS } from "../SparkEthereumDeployPAS.sol";
 
-abstract contract SparkDeploymentsEthereumPASTestBase is Test {
+import { SparkDeployOrchestration } from "../SparkDeployOrchestration.sol";
+
+abstract contract SparkEthereumDeployPASTestBase is Test {
 
     bytes32 internal constant DEFAULT_ADMIN_ROLE = 0x00;
 
@@ -33,7 +35,9 @@ abstract contract SparkDeploymentsEthereumPASTestBase is Test {
 
     uint256 internal constant PAS_MIN_DELAY = 5 days;
 
-    SparkDeploymentsEthereumPAS internal spell;
+    SparkDeployOrchestration.Report internal report;
+
+    address internal spell;
 
     address internal pasBeamState;
     address internal pasConfigurator;
@@ -49,7 +53,9 @@ abstract contract SparkDeploymentsEthereumPASTestBase is Test {
 
         vm.recordLogs();
 
-        spell = new SparkDeploymentsEthereumPAS();
+        report = SparkDeployOrchestration.deploy();
+
+        spell = report.pasDeployment;
 
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
@@ -57,12 +63,12 @@ abstract contract SparkDeploymentsEthereumPASTestBase is Test {
             deployLogs.push(logs[i]);
         }
 
-        pasBeamState    = spell.PAS_BEAM_STATE();
-        pasConfigurator = spell.PAS_CONFIGURATOR();
-        pasTimelock     = spell.PAS_TIMELOCK();
-        pasMom          = spell.PAS_MOM();
+        pasBeamState    = report.pasDeploymentReport.beamState;
+        pasConfigurator = report.pasDeploymentReport.configurator;
+        pasTimelock     = report.pasDeploymentReport.timelock;
+        pasMom          = report.pasDeploymentReport.mom;
 
-        vm.label(address(spell),  "spell");
+        vm.label(spell,           "spell");
         vm.label(pasBeamState,    "pas.beamState");
         vm.label(pasConfigurator, "pas.configurator");
         vm.label(pasTimelock,     "pas.timelock");
@@ -98,13 +104,13 @@ abstract contract SparkDeploymentsEthereumPASTestBase is Test {
 
 }
 
-contract SparkDeploymentsEthereumPASTest_SpellPayload is SparkDeploymentsEthereumPASTestBase {
+contract SparkEthereumDeployPASTest_SpellPayload is SparkEthereumDeployPASTestBase {
 
     function test_spell_invalidChainId() external {
         vm.chainId(2);
 
-        vm.expectRevert("SparkDeploymentsEthereumPAS/invalid-chain-id");
-        new SparkDeploymentsEthereumPAS();
+        vm.expectRevert("SparkEthereumDeployPAS/invalid-chain-id");
+        new SparkEthereumDeployPAS();
     }
 
     function test_spell_deployedAddresses() external view {
@@ -123,19 +129,19 @@ contract SparkDeploymentsEthereumPASTest_SpellPayload is SparkDeploymentsEthereu
     function test_spell_holdsNoRoles() external view {
         Timelock timelock = Timelock(payable(pasTimelock));
 
-        assertEq(timelock.hasRole(DEFAULT_ADMIN_ROLE,        address(spell)), false);
-        assertEq(timelock.hasRole(timelock.PROPOSER_ROLE(),  address(spell)), false);
-        assertEq(timelock.hasRole(timelock.CANCELLER_ROLE(), address(spell)), false);
-        assertEq(timelock.hasRole(timelock.EXECUTOR_ROLE(),  address(spell)), false);
-        assertEq(timelock.hasRole(timelock.PAUSER_ROLE(),    address(spell)), false);
+        assertEq(timelock.hasRole(DEFAULT_ADMIN_ROLE,        spell), false);
+        assertEq(timelock.hasRole(timelock.PROPOSER_ROLE(),  spell), false);
+        assertEq(timelock.hasRole(timelock.CANCELLER_ROLE(), spell), false);
+        assertEq(timelock.hasRole(timelock.EXECUTOR_ROLE(),  spell), false);
+        assertEq(timelock.hasRole(timelock.PAUSER_ROLE(),    spell), false);
 
-        assertEq(BeamState(pasBeamState).wards(address(spell)),     0);
-        assertEq(BeamState(pasBeamState).userRoles(address(spell)), bytes32(0));
+        assertEq(BeamState(pasBeamState).wards(spell),     0);
+        assertEq(BeamState(pasBeamState).userRoles(spell), bytes32(0));
     }
 
 }
 
-contract SparkDeploymentsEthereumPASTest_PAS is SparkDeploymentsEthereumPASTestBase {
+contract SparkEthereumDeployPASTest_PAS is SparkEthereumDeployPASTestBase {
 
     function test_pasConfigurator_state() external view {
         assertEq(address(Configurator(pasConfigurator).beamState()), pasBeamState);
@@ -371,7 +377,7 @@ contract SparkDeploymentsEthereumPASTest_PAS is SparkDeploymentsEthereumPASTestB
 
 }
 
-contract SparkDeploymentsEthereumPASTest_E2E is SparkDeploymentsEthereumPASTestBase {
+contract SparkEthereumDeployPASTest_E2E is SparkEthereumDeployPASTestBase {
 
     function setUp() public override {
         super.setUp();

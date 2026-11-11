@@ -1,30 +1,30 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.34;
 
-import { ERC1967Proxy } from "../lib/spark-prime-vault/lib/oz/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import { ERC1967Proxy } from "../../../lib/spark-prime-vault/lib/oz/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-import { Ethereum } from "../lib/spark-address-registry/src/Ethereum.sol";
+import { Ethereum } from "../../../lib/spark-address-registry/src/Ethereum.sol";
 
-import { ISparkPrimeVault } from "../lib/spark-prime-vault/src/ISparkPrimeVault.sol";
+import { ISparkPrimeVault } from "../../../lib/spark-prime-vault/src/ISparkPrimeVault.sol";
 
-import { IAccessControls } from "../lib/diamond-pau/src/interfaces/IAccessControls.sol";
-import { IALMProxy }       from "../lib/diamond-pau/src/interfaces/IALMProxy.sol";
-import { IController }     from "../lib/diamond-pau/src/interfaces/IController.sol";
-import { IPAUFactory }     from "../lib/diamond-pau/src/interfaces/IPAUFactory.sol";
-import { IRateLimits }     from "../lib/diamond-pau/src/interfaces/IRateLimits.sol";
+import { IAccessControls } from "../../../lib/diamond-pau/src/interfaces/IAccessControls.sol";
+import { IALMProxy }       from "../../../lib/diamond-pau/src/interfaces/IALMProxy.sol";
+import { IController }     from "../../../lib/diamond-pau/src/interfaces/IController.sol";
+import { IPAUFactory }     from "../../../lib/diamond-pau/src/interfaces/IPAUFactory.sol";
+import { IRateLimits }     from "../../../lib/diamond-pau/src/interfaces/IRateLimits.sol";
 
-import { IERC4626Controller }       from "../lib/diamond-pau/src/facets/erc4626/IERC4626Controller.sol";
-import { ISparkVaultController }    from "../lib/diamond-pau/src/facets/spark-vault/ISparkVaultController.sol";
-import { ITransferAssetController } from "../lib/diamond-pau/src/facets/transfer-asset/ITransferAssetController.sol";
+import { IERC4626Controller }       from "../../../lib/diamond-pau/src/facets/erc4626/IERC4626Controller.sol";
+import { ISparkVaultController }    from "../../../lib/diamond-pau/src/facets/spark-vault/ISparkVaultController.sol";
+import { ITransferAssetController } from "../../../lib/diamond-pau/src/facets/transfer-asset/ITransferAssetController.sol";
 
 /**
- * @title  SparkDeploymentsEthereumSpPrime
+ * @title  SparkEthereumDeploySpPrime
  * @notice Single use deployment spell for Spark Prime Vault (spPrime) and its two PAU stacks
  *         (spPrimePAU and flcPAU) on Ethereum mainnet. The constructor deploys, configures and
  *         hands every contract over to its final owners. The spell holds no role afterwards.
  *         Requires PAS, deployed by SparkDeploymentsEthereumPAS.
  */
-contract SparkDeploymentsEthereumSpPrime {
+contract SparkEthereumDeploySpPrime {
 
     /**********************************************************************************************/
     /*** Constants                                                                              ***/
@@ -112,29 +112,35 @@ contract SparkDeploymentsEthereumSpPrime {
     /*** Deployed contracts                                                                     ***/
     /**********************************************************************************************/
 
-    address public immutable SPPRIME;
+    struct SpPrimeDeploymentReport {
+        address spPrime;
+        address spPrimePAUAccessControls;
+        address spPrimePAUAlmProxy;
+        address spPrimePAUController;
+        address spPrimePAURateLimits;
+        address flcPAUAccessControls;
+        address flcPAUAlmProxy;
+        address flcPAUController;
+        address flcPAURateLimits;
+    }
 
-    address public immutable SPPRIME_PAU_ACCESS_CONTROLS;
-    address public immutable SPPRIME_PAU_ALM_PROXY;
-    address public immutable SPPRIME_PAU_CONTROLLER;
-    address public immutable SPPRIME_PAU_RATE_LIMITS;
+    SpPrimeDeploymentReport internal _spPrimeDeployment;
 
-    address public immutable FLC_PAU_ACCESS_CONTROLS;
-    address public immutable FLC_PAU_ALM_PROXY;
-    address public immutable FLC_PAU_CONTROLLER;
-    address public immutable FLC_PAU_RATE_LIMITS;
+    function spPrimeDeployment() external view returns (SpPrimeDeploymentReport memory) {
+        return _spPrimeDeployment;
+    }
 
     /**********************************************************************************************/
     /*** Constructor                                                                            ***/
     /**********************************************************************************************/
 
-    constructor(address pauFactory, address spPrimeImplementation, address pasConfigurator) {
-        _assertPreconditions(pauFactory, spPrimeImplementation, pasConfigurator);
+    constructor(address pasConfigurator) {
+        _assertPreconditions(Ethereum.SPARK_PAU_FACTORY, Ethereum.SPPRIME_IMPL, pasConfigurator);
 
         // Step 1: Deploy spPrime with the spell as temporary admin
 
-        SPPRIME = address(new ERC1967Proxy(
-            spPrimeImplementation,
+        _spPrimeDeployment.spPrime = address(new ERC1967Proxy(
+            Ethereum.SPPRIME_IMPL,
             abi.encodeCall(
                 ISparkPrimeVault.initialize,
                 (
@@ -151,15 +157,15 @@ contract SparkDeploymentsEthereumSpPrime {
 
         // Step 2: Deploy the PAU stacks with the spell as temporary admin
 
-        SPPRIME_PAU_CONTROLLER      = IPAUFactory(pauFactory).deployPAU(address(this), SPPRIME_PAU_SALT);
-        SPPRIME_PAU_ACCESS_CONTROLS = IController(SPPRIME_PAU_CONTROLLER).accessControls();
-        SPPRIME_PAU_ALM_PROXY       = IController(SPPRIME_PAU_CONTROLLER).proxy();
-        SPPRIME_PAU_RATE_LIMITS     = IController(SPPRIME_PAU_CONTROLLER).rateLimits();
+        _spPrimeDeployment.spPrimePAUController     = IPAUFactory(Ethereum.SPARK_PAU_FACTORY).deployPAU(address(this), SPPRIME_PAU_SALT);
+        _spPrimeDeployment.spPrimePAUAccessControls = IController(_spPrimeDeployment.spPrimePAUController).accessControls();
+        _spPrimeDeployment.spPrimePAUAlmProxy       = IController(_spPrimeDeployment.spPrimePAUController).proxy();
+        _spPrimeDeployment.spPrimePAURateLimits     = IController(_spPrimeDeployment.spPrimePAUController).rateLimits();
 
-        FLC_PAU_CONTROLLER      = IPAUFactory(pauFactory).deployPAU(address(this), FLC_PAU_SALT);
-        FLC_PAU_ACCESS_CONTROLS = IController(FLC_PAU_CONTROLLER).accessControls();
-        FLC_PAU_ALM_PROXY       = IController(FLC_PAU_CONTROLLER).proxy();
-        FLC_PAU_RATE_LIMITS     = IController(FLC_PAU_CONTROLLER).rateLimits();
+        _spPrimeDeployment.flcPAUController     = IPAUFactory(Ethereum.SPARK_PAU_FACTORY).deployPAU(address(this), FLC_PAU_SALT);
+        _spPrimeDeployment.flcPAUAccessControls = IController(_spPrimeDeployment.flcPAUController).accessControls();
+        _spPrimeDeployment.flcPAUAlmProxy       = IController(_spPrimeDeployment.flcPAUController).proxy();
+        _spPrimeDeployment.flcPAURateLimits     = IController(_spPrimeDeployment.flcPAUController).rateLimits();
 
         // Step 3: Configure spPrime and the PAU stacks
 
@@ -169,15 +175,15 @@ contract SparkDeploymentsEthereumSpPrime {
 
         // Step 4: Hand admin rights over and revoke the spell's admin role
 
-        _handoff(SPPRIME, SPPRIME_ADMIN);
+        _handoff(_spPrimeDeployment.spPrime, SPPRIME_ADMIN);
 
-        _handoff(SPPRIME_PAU_ACCESS_CONTROLS, SPPRIME_PAU_ADMIN);
-        _handoff(SPPRIME_PAU_RATE_LIMITS,     SPPRIME_PAU_ADMIN);
-        _handoff(SPPRIME_PAU_ALM_PROXY,       SPPRIME_PAU_ADMIN);
+        _handoff(_spPrimeDeployment.spPrimePAUAccessControls, SPPRIME_PAU_ADMIN);
+        _handoff(_spPrimeDeployment.spPrimePAURateLimits,     SPPRIME_PAU_ADMIN);
+        _handoff(_spPrimeDeployment.spPrimePAUAlmProxy,       SPPRIME_PAU_ADMIN);
 
-        _handoff(FLC_PAU_ACCESS_CONTROLS, FLC_PAU_ADMIN);
-        _handoff(FLC_PAU_RATE_LIMITS,     FLC_PAU_ADMIN);
-        _handoff(FLC_PAU_ALM_PROXY,       FLC_PAU_ADMIN);
+        _handoff(_spPrimeDeployment.flcPAUAccessControls, FLC_PAU_ADMIN);
+        _handoff(_spPrimeDeployment.flcPAURateLimits,     FLC_PAU_ADMIN);
+        _handoff(_spPrimeDeployment.flcPAUAlmProxy,       FLC_PAU_ADMIN);
     }
 
     /**********************************************************************************************/
@@ -185,7 +191,7 @@ contract SparkDeploymentsEthereumSpPrime {
     /**********************************************************************************************/
 
     function _configureSpPrime() internal {
-        ISparkPrimeVault spPrime = ISparkPrimeVault(SPPRIME);
+        ISparkPrimeVault spPrime = ISparkPrimeVault(_spPrimeDeployment.spPrime);
 
         spPrime.setVSRBounds(MIN_VSR, MAX_VSR);
         spPrime.setMaxRedeemFeeRate(MAX_REDEEM_FEE_RATE);
@@ -197,17 +203,17 @@ contract SparkDeploymentsEthereumSpPrime {
         spPrime.grantRole(spPrime.LOSS_MANAGER_ROLE(),      SPPRIME_LOSS_MANAGER);
 
         // The spPrimePAU pulls spUSDC out of spPrime through its ALMProxy.
-        spPrime.grantRole(spPrime.TAKER_ROLE(), SPPRIME_PAU_ALM_PROXY);
+        spPrime.grantRole(spPrime.TAKER_ROLE(), _spPrimeDeployment.spPrimePAUAlmProxy);
     }
 
     function _configureSpPrimePAU(address pasConfigurator) internal {
         // Configure the PAU roles
 
         _configurePAURoles(
-            SPPRIME_PAU_ACCESS_CONTROLS,
-            SPPRIME_PAU_ALM_PROXY,
-            SPPRIME_PAU_CONTROLLER,
-            SPPRIME_PAU_RATE_LIMITS,
+            _spPrimeDeployment.spPrimePAUAccessControls,
+            _spPrimeDeployment.spPrimePAUAlmProxy,
+            _spPrimeDeployment.spPrimePAUController,
+            _spPrimeDeployment.spPrimePAURateLimits,
             pasConfigurator
         );
 
@@ -218,22 +224,22 @@ contract SparkDeploymentsEthereumSpPrime {
         integrationIds[1] = ERC4626_FACET;
         integrationIds[2] = SPARK_VAULT_FACET;
 
-        IController(SPPRIME_PAU_CONTROLLER).updateIntegrations(integrationIds);
+        IController(_spPrimeDeployment.spPrimePAUController).updateIntegrations(integrationIds);
 
         // Configure the Rate limits
 
-        IRateLimits rateLimits = IRateLimits(SPPRIME_PAU_RATE_LIMITS);
+        IRateLimits rateLimits = IRateLimits(_spPrimeDeployment.spPrimePAURateLimits);
 
         rateLimits.setRateLimitData(
-            ITransferAssetController(SPPRIME_PAU_CONTROLLER).transferAsset_getTransferRateLimitKey(
+            ITransferAssetController(_spPrimeDeployment.spPrimePAUController).transferAsset_getTransferRateLimitKey(
                 SPUSDC,
-                SPPRIME
+                _spPrimeDeployment.spPrime
             ),
             SPPRIME_PAU_TRANSFER_MAX,
             SPPRIME_PAU_TRANSFER_SLOPE
         );
 
-        IERC4626Controller erc4626 = IERC4626Controller(SPPRIME_PAU_CONTROLLER);
+        IERC4626Controller erc4626 = IERC4626Controller(_spPrimeDeployment.spPrimePAUController);
 
         rateLimits.setRateLimitData(
             erc4626.erc4626_getDepositRateLimitKey(SPUSDC, Ethereum.USDC),
@@ -253,7 +259,7 @@ contract SparkDeploymentsEthereumSpPrime {
         );
 
         rateLimits.setRateLimitData(
-            ISparkVaultController(SPPRIME_PAU_CONTROLLER).sparkVault_getTakeRateLimitKey(SPPRIME),
+            ISparkVaultController(_spPrimeDeployment.spPrimePAUController).sparkVault_getTakeRateLimitKey(_spPrimeDeployment.spPrime),
             SPPRIME_PAU_TAKE_MAX,
             SPPRIME_PAU_TAKE_SLOPE
         );
@@ -263,10 +269,10 @@ contract SparkDeploymentsEthereumSpPrime {
         // Configure the PAU roles
 
         _configurePAURoles(
-            FLC_PAU_ACCESS_CONTROLS,
-            FLC_PAU_ALM_PROXY,
-            FLC_PAU_CONTROLLER,
-            FLC_PAU_RATE_LIMITS,
+            _spPrimeDeployment.flcPAUAccessControls,
+            _spPrimeDeployment.flcPAUAlmProxy,
+            _spPrimeDeployment.flcPAUController,
+            _spPrimeDeployment.flcPAURateLimits,
             pasConfigurator
         );
 
@@ -275,14 +281,14 @@ contract SparkDeploymentsEthereumSpPrime {
         bytes32[] memory integrationIds = new bytes32[](1);
         integrationIds[0] = TRANSFER_ASSET_FACET;
 
-        IController(FLC_PAU_CONTROLLER).updateIntegrations(integrationIds);
+        IController(_spPrimeDeployment.flcPAUController).updateIntegrations(integrationIds);
 
         // Configure the Rate limits
 
-        IRateLimits(FLC_PAU_RATE_LIMITS).setRateLimitData(
-            ITransferAssetController(FLC_PAU_CONTROLLER).transferAsset_getTransferRateLimitKey(
+        IRateLimits(_spPrimeDeployment.flcPAURateLimits).setRateLimitData(
+            ITransferAssetController(_spPrimeDeployment.flcPAUController).transferAsset_getTransferRateLimitKey(
                 SPUSDC,
-                SPPRIME_PAU_ALM_PROXY
+                _spPrimeDeployment.spPrimePAUAlmProxy
             ),
             FLC_PAU_TRANSFER_MAX,
             FLC_PAU_TRANSFER_SLOPE

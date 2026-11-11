@@ -1,31 +1,30 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.34;
 
-import { Test } from "../lib/forge-std/src/Test.sol";
+import { Test } from "../../../../lib/forge-std/src/Test.sol";
 
-import { IAccessControl } from "../lib/spark-prime-vault/lib/oz/contracts/access/IAccessControl.sol";
+import { IAccessControl } from "../../../../lib/spark-prime-vault/lib/oz/contracts/access/IAccessControl.sol";
 
-import { Ethereum } from "../lib/spark-address-registry/src/Ethereum.sol";
+import { Ethereum } from "../../../../lib/spark-address-registry/src/Ethereum.sol";
 
-import { ISparkPrimeVault } from "../lib/spark-prime-vault/src/ISparkPrimeVault.sol";
-import { SparkPrimeVault }  from "../lib/spark-prime-vault/src/SparkPrimeVault.sol";
+import { ISparkPrimeVault } from "../../../../lib/spark-prime-vault/src/ISparkPrimeVault.sol";
+import { SparkPrimeVault }  from "../../../../lib/spark-prime-vault/src/SparkPrimeVault.sol";
 
-import { IAccessControls }         from "../lib/diamond-pau/src/interfaces/IAccessControls.sol";
-import { IALMProxy }               from "../lib/diamond-pau/src/interfaces/IALMProxy.sol";
-import { IBeacon }                 from "../lib/diamond-pau/src/interfaces/IBeacon.sol";
-import { IController }             from "../lib/diamond-pau/src/interfaces/IController.sol";
-import { IEnumerableIntegrations } from "../lib/diamond-pau/src/interfaces/IEnumerableIntegrations.sol";
-import { IPAUFactory }             from "../lib/diamond-pau/src/interfaces/IPAUFactory.sol";
-import { IRateLimits }             from "../lib/diamond-pau/src/interfaces/IRateLimits.sol";
+import { IAccessControls }         from "../../../../lib/diamond-pau/src/interfaces/IAccessControls.sol";
+import { IALMProxy }               from "../../../../lib/diamond-pau/src/interfaces/IALMProxy.sol";
+import { IBeacon }                 from "../../../../lib/diamond-pau/src/interfaces/IBeacon.sol";
+import { IController }             from "../../../../lib/diamond-pau/src/interfaces/IController.sol";
+import { IEnumerableIntegrations } from "../../../../lib/diamond-pau/src/interfaces/IEnumerableIntegrations.sol";
+import { IPAUFactory }             from "../../../../lib/diamond-pau/src/interfaces/IPAUFactory.sol";
+import { IRateLimits }             from "../../../../lib/diamond-pau/src/interfaces/IRateLimits.sol";
 
-import { IERC4626Controller }       from "../lib/diamond-pau/src/facets/erc4626/IERC4626Controller.sol";
-import { ISparkVaultController }    from "../lib/diamond-pau/src/facets/spark-vault/ISparkVaultController.sol";
-import { ITransferAssetController } from "../lib/diamond-pau/src/facets/transfer-asset/ITransferAssetController.sol";
+import { IERC4626Controller }       from "../../../../lib/diamond-pau/src/facets/erc4626/IERC4626Controller.sol";
+import { ISparkVaultController }    from "../../../../lib/diamond-pau/src/facets/spark-vault/ISparkVaultController.sol";
+import { ITransferAssetController } from "../../../../lib/diamond-pau/src/facets/transfer-asset/ITransferAssetController.sol";
 
-import { PAUFactory } from "../lib/diamond-pau/src/PAUFactory.sol";
+import { SparkEthereumDeploySpPrime } from "../SparkEthereumDeploySpPrime.sol";
 
-import { SparkDeploymentsEthereumPAS }     from "../src/SparkDeploymentsEthereumPAS.sol";
-import { SparkDeploymentsEthereumSpPrime } from "../src/SparkDeploymentsEthereumSpPrime.sol";
+import { SparkDeployOrchestration } from "../SparkDeployOrchestration.sol";
 
 interface IERC20Like {
 
@@ -37,7 +36,7 @@ interface IERC20Like {
 
 }
 
-abstract contract SparkDeploymentsEthereumSpPrimeTestBase is Test {
+abstract contract SparkEthereumDeploySpPrimeTestBase is Test {
 
     bytes32 internal constant IMPLEMENTATION_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
 
@@ -60,7 +59,9 @@ abstract contract SparkDeploymentsEthereumSpPrimeTestBase is Test {
     address internal constant SPPRIME_PAU_ADMIN         = address(7);
     address internal constant FLC_PAU_ADMIN             = address(8);
 
-    SparkDeploymentsEthereumSpPrime internal spell;
+    SparkDeployOrchestration.Report internal report;
+
+    address internal spell;
 
     address internal pauFactory;
     address internal spPrimeImplementation;
@@ -83,24 +84,25 @@ abstract contract SparkDeploymentsEthereumSpPrimeTestBase is Test {
     function setUp() public virtual {
         vm.createSelectFork(getChain("mainnet").rpcUrl);
 
-        // TODO: Use the deployed v1.16.0 PAUFactory, spPrime implementation and PAS once live.
-        pauFactory            = address(new PAUFactory(PAU_BEACON));
-        spPrimeImplementation = address(new SparkPrimeVault());
-        pasConfigurator       = (new SparkDeploymentsEthereumPAS()).PAS_CONFIGURATOR();
+        pauFactory            = Ethereum.SPARK_PAU_FACTORY;
+        spPrimeImplementation = Ethereum.SPPRIME_IMPL;
 
-        spell = new SparkDeploymentsEthereumSpPrime(pauFactory, spPrimeImplementation, pasConfigurator);
+        report = SparkDeployOrchestration.deploy();
 
-        spPrime = ISparkPrimeVault(spell.SPPRIME());
+        spell = address(report.spPrimeDeployment);
 
-        spPrimePAUAccessControls = spell.SPPRIME_PAU_ACCESS_CONTROLS();
-        spPrimePAUAlmProxy       = spell.SPPRIME_PAU_ALM_PROXY();
-        spPrimePAUController     = spell.SPPRIME_PAU_CONTROLLER();
-        spPrimePAURateLimits     = spell.SPPRIME_PAU_RATE_LIMITS();
+        pasConfigurator = report.pasDeploymentReport.configurator;
+        spPrime         = ISparkPrimeVault(report.spPrimeDeploymentReport.spPrime);
 
-        flcPAUAccessControls = spell.FLC_PAU_ACCESS_CONTROLS();
-        flcPAUAlmProxy       = spell.FLC_PAU_ALM_PROXY();
-        flcPAUController     = spell.FLC_PAU_CONTROLLER();
-        flcPAURateLimits     = spell.FLC_PAU_RATE_LIMITS();
+        spPrimePAUAccessControls = report.spPrimeDeploymentReport.spPrimePAUAccessControls;
+        spPrimePAUAlmProxy       = report.spPrimeDeploymentReport.spPrimePAUAlmProxy;
+        spPrimePAUController     = report.spPrimeDeploymentReport.spPrimePAUController;
+        spPrimePAURateLimits     = report.spPrimeDeploymentReport.spPrimePAURateLimits;
+
+        flcPAUAccessControls = report.spPrimeDeploymentReport.flcPAUAccessControls;
+        flcPAUAlmProxy       = report.spPrimeDeploymentReport.flcPAUAlmProxy;
+        flcPAUController     = report.spPrimeDeploymentReport.flcPAUController;
+        flcPAURateLimits     = report.spPrimeDeploymentReport.flcPAURateLimits;
 
         vm.label(address(spell),           "spell");
         vm.label(pauFactory,               "pauFactory");
@@ -218,51 +220,32 @@ abstract contract SparkDeploymentsEthereumSpPrimeTestBase is Test {
 
 }
 
-contract SparkDeploymentsEthereumSpPrimeTest_SpellPayload is SparkDeploymentsEthereumSpPrimeTestBase {
+contract SparkEthereumDeploySpPrimeTest_SpellPayload is SparkEthereumDeploySpPrimeTestBase {
 
     function test_spell_invalidChainId() external {
         vm.chainId(2);
 
         vm.expectRevert("SparkDeploymentsEthereumSpPrime/invalid-chain-id");
-        new SparkDeploymentsEthereumSpPrime(pauFactory, spPrimeImplementation, pasConfigurator);
-    }
-
-    function test_spell_noSpPrimeImplementation() external {
-        vm.expectRevert("SparkDeploymentsEthereumSpPrime/no-spprime-implementation");
-        new SparkDeploymentsEthereumSpPrime(pauFactory, makeAddr("spPrimeImplementation"), pasConfigurator);
-    }
-
-    function test_spell_noPAUFactory() external {
-        vm.expectRevert("SparkDeploymentsEthereumSpPrime/no-pau-factory");
-        new SparkDeploymentsEthereumSpPrime(makeAddr("pauFactory"), spPrimeImplementation, pasConfigurator);
+        new SparkEthereumDeploySpPrime(pasConfigurator);
     }
 
     function test_spell_noPASConfigurator() external {
         vm.expectRevert("SparkDeploymentsEthereumSpPrime/no-pas-configurator");
-        new SparkDeploymentsEthereumSpPrime(pauFactory, spPrimeImplementation, makeAddr("pasConfigurator"));
+        new SparkEthereumDeploySpPrime(makeAddr("pasConfigurator"));
     }
 
     function test_spell_noPAUBeacon() external {
         vm.etch(PAU_BEACON, "");
 
         vm.expectRevert("SparkDeploymentsEthereumSpPrime/no-pau-beacon");
-        new SparkDeploymentsEthereumSpPrime(pauFactory, spPrimeImplementation, pasConfigurator);
+        new SparkEthereumDeploySpPrime(pasConfigurator);
     }
 
     function test_spell_noAdministeredAgent() external {
         vm.etch(ADMINISTERED_AGENT, "");
 
         vm.expectRevert("SparkDeploymentsEthereumSpPrime/no-administered-agent");
-        new SparkDeploymentsEthereumSpPrime(pauFactory, spPrimeImplementation, pasConfigurator);
-    }
-
-    function test_spell_invalidPAUBeacon() external {
-        address otherFactory = address(new PAUFactory(PAU_BEACON));
-
-        vm.mockCall(otherFactory, abi.encodeCall(IPAUFactory.beacon, ()), abi.encode(makeAddr("beacon")));
-
-        vm.expectRevert("SparkDeploymentsEthereumSpPrime/invalid-pau-beacon");
-        new SparkDeploymentsEthereumSpPrime(otherFactory, spPrimeImplementation, pasConfigurator);
+        new SparkEthereumDeploySpPrime(pasConfigurator);
     }
 
     function test_spell_deployedAddresses() external view {
@@ -316,7 +299,7 @@ contract SparkDeploymentsEthereumSpPrimeTest_SpellPayload is SparkDeploymentsEth
 
 }
 
-contract SparkDeploymentsEthereumSpPrimeTest_spPrime is SparkDeploymentsEthereumSpPrimeTestBase {
+contract SparkEthereumDeploySpPrime_spPrime is SparkEthereumDeploySpPrimeTestBase {
 
     function test_spPrime_proxy() external view {
         assertEq(address(uint160(uint256(vm.load(address(spPrime), IMPLEMENTATION_SLOT)))), spPrimeImplementation);
@@ -364,7 +347,7 @@ contract SparkDeploymentsEthereumSpPrimeTest_spPrime is SparkDeploymentsEthereum
 
 }
 
-contract SparkDeploymentsEthereumSpPrimeTest_spPrimePAU is SparkDeploymentsEthereumSpPrimeTestBase {
+contract SparkEthereumDeploySpPrimeTest_spPrimePAU is SparkEthereumDeploySpPrimeTestBase {
 
     function test_spPrimePAU_wiring() external view {
         _assertWiring(spPrimePAUController, spPrimePAUAccessControls, spPrimePAUAlmProxy, spPrimePAURateLimits);
@@ -428,7 +411,7 @@ contract SparkDeploymentsEthereumSpPrimeTest_spPrimePAU is SparkDeploymentsEther
 
 }
 
-contract SparkDeploymentsEthereumSpPrimeTest_flcPAU is SparkDeploymentsEthereumSpPrimeTestBase {
+contract SparkDeploymentsEthereumSpPrimeTest_flcPAU is SparkEthereumDeploySpPrimeTestBase {
 
     function test_flcPAU_wiring() external view {
         _assertWiring(flcPAUController, flcPAUAccessControls, flcPAUAlmProxy, flcPAURateLimits);
@@ -456,7 +439,7 @@ contract SparkDeploymentsEthereumSpPrimeTest_flcPAU is SparkDeploymentsEthereumS
 
 }
 
-contract SparkDeploymentsEthereumSpPrimeTest_E2E is SparkDeploymentsEthereumSpPrimeTestBase {
+contract SparkDeploymentsEthereumSpPrimeTest_E2E is SparkEthereumDeploySpPrimeTestBase {
 
     uint256 internal constant VAULT_CAPACITY = 100_000_000e6;
 
@@ -482,8 +465,8 @@ contract SparkDeploymentsEthereumSpPrimeTest_E2E is SparkDeploymentsEthereumSpPr
 
         assertApproxEqAbs(IERC20Like(Ethereum.USDC).balanceOf(user), 10_000e6, 2);
 
-        assertEq(spPrime.balanceOf(user),       0);
-        assertEq(spPrime.claimableAssets(user), 0);
+        assertEq(spPrime.balanceOf(user),         0);
+        assertEq(spPrime.claimableAssetsOf(user), 0);
     }
 
     function _setCapacity(uint256 capacity) internal {
