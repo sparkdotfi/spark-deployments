@@ -30,7 +30,7 @@ contract SparkEthereumDeploySpPrime {
     /*** Constants                                                                              ***/
     /**********************************************************************************************/
 
-    uint256 internal constant ETHEREUM_MAINNET = 1;
+    uint256 internal constant MAINNET = 1;
 
     // ROLES
 
@@ -324,11 +324,11 @@ contract SparkEthereumDeploySpPrime {
 
         require(
             IAccessControls(target).hasRole(DEFAULT_ADMIN_ROLE, admin),
-            "SparkDeploymentsEthereumSpPrime/admin-not-set"
+            "SparkEthereumDeploySpPrime/admin-not-set"
         );
         require(
             !IAccessControls(target).hasRole(DEFAULT_ADMIN_ROLE, address(this)),
-            "SparkDeploymentsEthereumSpPrime/spell-still-admin"
+            "SparkEthereumDeploySpPrime/spell-still-admin"
         );
     }
 
@@ -343,16 +343,16 @@ contract SparkEthereumDeploySpPrime {
     )
         internal view
     {
-        require(block.chainid == ETHEREUM_MAINNET, "SparkDeploymentsEthereumSpPrime/invalid-chain-id");
+        require(block.chainid == MAINNET, "SparkEthereumDeploySpPrime/invalid-chain-id");
 
         // Guards against a wrong constructor argument or an unfilled placeholder.
-        require(spPrimeImplementation.code.length > 0, "SparkDeploymentsEthereumSpPrime/no-spprime-implementation");
-        require(pauFactory.code.length            > 0, "SparkDeploymentsEthereumSpPrime/no-pau-factory");
-        require(pasConfigurator.code.length       > 0, "SparkDeploymentsEthereumSpPrime/no-pas-configurator");
-        require(PAU_BEACON.code.length            > 0, "SparkDeploymentsEthereumSpPrime/no-pau-beacon");
-        require(ADMINISTERED_AGENT.code.length    > 0, "SparkDeploymentsEthereumSpPrime/no-administered-agent");
+        require(spPrimeImplementation.code.length > 0, "SparkEthereumDeploySpPrime/no-spprime-implementation");
+        require(pauFactory.code.length            > 0, "SparkEthereumDeploySpPrime/no-pau-factory");
+        require(pasConfigurator.code.length       > 0, "SparkEthereumDeploySpPrime/no-pas-configurator");
+        require(PAU_BEACON.code.length            > 0, "SparkEthereumDeploySpPrime/no-pau-beacon");
+        require(ADMINISTERED_AGENT.code.length    > 0, "SparkEthereumDeploySpPrime/no-administered-agent");
 
-        require(IPAUFactory(pauFactory).beacon() == PAU_BEACON, "SparkDeploymentsEthereumSpPrime/invalid-pau-beacon");
+        require(IPAUFactory(pauFactory).beacon() == PAU_BEACON, "SparkEthereumDeploySpPrime/invalid-pau-beacon");
     }
 
 }

@@ -160,23 +160,27 @@ contract SparkEthereumDeployPASTest_PAS is SparkEthereumDeployPASTestBase {
     function test_beamState_wards() external view {
         BeamState beamState = BeamState(pasBeamState);
 
-        // BeamState admin: PAS owner only
+        // BeamState wards: PAS owner and PAS Mom (to call stop())
 
         assertEq(beamState.wards(PAS_OWNER),        1);
+        assertEq(beamState.wards(pasMom),           1);
         assertEq(beamState.wards(PAS_CORE_COUNCIL), 0);
         assertEq(beamState.wards(address(spell)),   0);
 
         Vm.Log[] memory relyLogs = _getEvents(pasBeamState, BeamState.Rely.selector);
         Vm.Log[] memory denyLogs = _getEvents(pasBeamState, BeamState.Deny.selector);
 
-        assertEq(relyLogs.length, 2);
+        assertEq(relyLogs.length, 3);
         assertEq(denyLogs.length, 1);
 
         assertEq(relyLogs[0].topics[0],                            BeamState.Rely.selector);
         assertEq(address(uint160(uint256(relyLogs[0].topics[1]))), address(spell));
 
         assertEq(relyLogs[1].topics[0],                            BeamState.Rely.selector);
-        assertEq(address(uint160(uint256(relyLogs[1].topics[1]))), PAS_OWNER);
+        assertEq(address(uint160(uint256(relyLogs[1].topics[1]))), pasMom);
+
+        assertEq(relyLogs[2].topics[0],                            BeamState.Rely.selector);
+        assertEq(address(uint160(uint256(relyLogs[2].topics[1]))), PAS_OWNER);
 
         assertEq(denyLogs[0].topics[0],                            BeamState.Deny.selector);
         assertEq(address(uint160(uint256(denyLogs[0].topics[1]))), address(spell));

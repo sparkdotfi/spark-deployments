@@ -5,8 +5,10 @@ import { Ethereum } from "../../../lib/spark-address-registry/src/Ethereum.sol";
 
 import { BeamState }    from "../../../lib/pas/src/BeamState.sol";
 import { Configurator } from "../../../lib/pas/src/Configurator.sol";
+import { PASMom }       from "../../../lib/pas/src/PASMom.sol";
 import { Timelock }     from "../../../lib/pas/src/timelock/Timelock.sol";
 
+import { PASDeploy }   from "../../../lib/pas/deploy/PASDeploy.sol";
 import { PASInit }     from "../../../lib/pas/deploy/PASInit.sol";
 import { PASInstance } from "../../../lib/pas/deploy/PASInstance.sol";
 
@@ -67,16 +69,21 @@ contract SparkEthereumDeployPAS {
         _pasDeployment.configurator = address(new Configurator(_pasDeployment.beamState));
         _pasDeployment.timelock     = address(new Timelock(PAS_MIN_DELAY, address(this)));
 
-        // TODO: Deploy the Sky PAS Mom, placeholder address until then.
-        _pasDeployment.mom = address(4); // use deployMom from PASDeploy.sol
+        _pasDeployment.mom = PASDeploy.deployMom({
+            owner     : address(this),
+            beamState : _pasDeployment.beamState,
+            timelock  : _pasDeployment.timelock
+        });
 
         // Step 2: Configure PAS
 
         _configurePAS();
+        _configureMom();
 
         // Step 3: Hand ownership over and remove the spell
 
         _handoffPAS();
+        _handoffMom();
     }
 
     /**********************************************************************************************/
@@ -103,8 +110,26 @@ contract SparkEthereumDeployPAS {
             cancellers  : cancellers,
             pausers     : pausers
         });
+    }
 
-        // TODO: Configure the Sky PAS Mom. Use initMom from PASInit.sol
+    function _configureMom() internal {
+        BeamState beamState = BeamState(_pasDeployment.beamState);
+        PASMom    mom       = PASMom(_pasDeployment.mom);
+        Timelock  timelock  = Timelock(payable(_pasDeployment.timelock));
+
+        // --- Sanity checks ---
+        require(address(mom.beamState()) == address(beamState), "SparkEthereumDeployPAS/mom-beamState-mismatch");
+        require(address(mom.timelock())  == address(timelock),  "SparkEthereumDeployPAS/mom-timelock-mismatch");
+
+        // --- Set permissions ---
+
+        // Rely Mom on BeamState to call stop()
+        beamState.rely(address(mom));
+        // Give Mom the PAUSER_ROLE to call pause() on Timelock
+        timelock.grantRole(timelock.PAUSER_ROLE(), address(mom));
+
+        // Set Mom's authority to CHIEF
+        mom.setAuthority(Ethereum.CHIEF);
     }
 
     /**********************************************************************************************/
@@ -136,6 +161,19 @@ contract SparkEthereumDeployPAS {
         require(
             !timelock.hasRole(DEFAULT_ADMIN_ROLE, address(this)),
             "SparkEthereumDeployPAS/spell-still-admin"
+        );
+    }
+
+    function _handoffMom() internal {
+        PASMom(_pasDeployment.mom).setOwner(Ethereum.PAUSE_PROXY);
+
+        require(
+            PASMom(_pasDeployment.mom).owner() == Ethereum.PAUSE_PROXY,
+            "SparkEthereumDeployPAS/mom-owner-not-set"
+        );
+        require(
+            PASMom(_pasDeployment.mom).owner() != address(this),
+            "SparkEthereumDeployPAS/spell-still-mom-owner"
         );
     }
 

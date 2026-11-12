@@ -225,26 +225,26 @@ contract SparkEthereumDeploySpPrimeTest_SpellPayload is SparkEthereumDeploySpPri
     function test_spell_invalidChainId() external {
         vm.chainId(2);
 
-        vm.expectRevert("SparkDeploymentsEthereumSpPrime/invalid-chain-id");
+        vm.expectRevert("SparkEthereumDeploySpPrime/invalid-chain-id");
         new SparkEthereumDeploySpPrime(pasConfigurator);
     }
 
     function test_spell_noPASConfigurator() external {
-        vm.expectRevert("SparkDeploymentsEthereumSpPrime/no-pas-configurator");
+        vm.expectRevert("SparkEthereumDeploySpPrime/no-pas-configurator");
         new SparkEthereumDeploySpPrime(makeAddr("pasConfigurator"));
     }
 
     function test_spell_noPAUBeacon() external {
         vm.etch(PAU_BEACON, "");
 
-        vm.expectRevert("SparkDeploymentsEthereumSpPrime/no-pau-beacon");
+        vm.expectRevert("SparkEthereumDeploySpPrime/no-pau-beacon");
         new SparkEthereumDeploySpPrime(pasConfigurator);
     }
 
     function test_spell_noAdministeredAgent() external {
         vm.etch(ADMINISTERED_AGENT, "");
 
-        vm.expectRevert("SparkDeploymentsEthereumSpPrime/no-administered-agent");
+        vm.expectRevert("SparkEthereumDeploySpPrime/no-administered-agent");
         new SparkEthereumDeploySpPrime(pasConfigurator);
     }
 
