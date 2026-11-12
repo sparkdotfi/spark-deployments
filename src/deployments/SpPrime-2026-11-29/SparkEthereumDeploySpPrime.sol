@@ -17,6 +17,30 @@ import { IERC4626Controller }       from "../../../lib/diamond-pau/src/facets/er
 import { ISparkVaultController }    from "../../../lib/diamond-pau/src/facets/spark-vault/ISparkVaultController.sol";
 import { ITransferAssetController } from "../../../lib/diamond-pau/src/facets/transfer-asset/ITransferAssetController.sol";
 
+interface IAdministeredAgent {
+
+    function addActor(address account) external;
+
+    function addAdmin(address account) external;
+
+    function addGrantor(address account) external;
+
+    function addRevoker(address account) external;
+
+    function adminCount() external view returns (uint256);
+
+    function getAdmin(uint256 index) external view returns (address);
+
+    function removeAdmin(address account) external;
+
+}
+
+interface IAdministeredAgentFactory {
+
+    function deploy(address admin, bytes32 salt) external returns (address administeredAgent);
+
+}
+
 /**
  * @title  SparkEthereumDeploySpPrime
  * @notice Single use deployment spell for Spark Prime Vault (spPrime) and its two PAU stacks
@@ -47,8 +71,14 @@ contract SparkEthereumDeploySpPrime {
 
     // ADMINISTERED AGENT
 
-    // TODO: Confirm this is the correct AdministeredAgent.
-    address internal constant ADMINISTERED_AGENT = Ethereum.SPUSDC_PAU_ADMINISTERED_AGENT;
+    bytes32 internal constant SPARK_PLANNER_ADMINISTERED_AGENT_SALT = "SPARK_PLANNER_ADMINISTERED_AGENT";
+    bytes32 internal constant SPARK_VAULTS_ADMINISTERED_AGENT_SALT  = "SPARK_VAULTS_ADMINISTERED_AGENT";
+
+    address internal constant SOTER_LABS_GRANTOR_MULTISIG     = address(7);
+    address internal constant SOTER_LABS_REVOKER_MULTISIG     = address(8);
+    address internal constant SPARK_PLANNER_HOT_WALLET        = address(9);
+    address internal constant SPARK_LOW_THRESHOLD_MULTISIG    = address(10);
+    address internal constant SPARK_MEDIUM_THRESHOLD_MULTISIG = address(11);
 
     // SPARK PRIME VAULT CONFIG
 
@@ -122,6 +152,8 @@ contract SparkEthereumDeploySpPrime {
         address flcPAUAlmProxy;
         address flcPAUController;
         address flcPAURateLimits;
+        address sparkPlannerAdministeredAgent;
+        address sparkVaultsAdministeredAgent;
     }
 
     SpPrimeDeploymentReport internal _spPrimeDeployment;
@@ -155,25 +187,43 @@ contract SparkEthereumDeploySpPrime {
             )
         ));
 
-        // Step 2: Deploy the PAU stacks with the spell as temporary admin
+        // Step 2: Deploy the PAU stacks, AdministeredAgents with the spell as temporary admin
 
-        _spPrimeDeployment.spPrimePAUController     = IPAUFactory(Ethereum.SPARK_PAU_FACTORY).deployPAU(address(this), SPPRIME_PAU_SALT);
-        _spPrimeDeployment.spPrimePAUAccessControls = IController(_spPrimeDeployment.spPrimePAUController).accessControls();
-        _spPrimeDeployment.spPrimePAUAlmProxy       = IController(_spPrimeDeployment.spPrimePAUController).proxy();
-        _spPrimeDeployment.spPrimePAURateLimits     = IController(_spPrimeDeployment.spPrimePAUController).rateLimits();
+        IAdministeredAgentFactory administeredAgentFactory = IAdministeredAgentFactory(Ethereum.SPARK_ADMINISTERED_AGENT_FACTORY);
 
-        _spPrimeDeployment.flcPAUController     = IPAUFactory(Ethereum.SPARK_PAU_FACTORY).deployPAU(address(this), FLC_PAU_SALT);
-        _spPrimeDeployment.flcPAUAccessControls = IController(_spPrimeDeployment.flcPAUController).accessControls();
-        _spPrimeDeployment.flcPAUAlmProxy       = IController(_spPrimeDeployment.flcPAUController).proxy();
-        _spPrimeDeployment.flcPAURateLimits     = IController(_spPrimeDeployment.flcPAUController).rateLimits();
+        _spPrimeDeployment.sparkPlannerAdministeredAgent = administeredAgentFactory.deploy(
+            address(this),
+            SPARK_PLANNER_ADMINISTERED_AGENT_SALT
+        );
+        _spPrimeDeployment.sparkVaultsAdministeredAgent = administeredAgentFactory.deploy(
+            address(this),
+            SPARK_VAULTS_ADMINISTERED_AGENT_SALT
+        );
+
+        _spPrimeDeployment.spPrimePAUController = IPAUFactory(Ethereum.SPARK_PAU_FACTORY).deployPAU(address(this), SPPRIME_PAU_SALT);
+        IController spPrimePAUController        = IController(_spPrimeDeployment.spPrimePAUController);
+
+        _spPrimeDeployment.spPrimePAUAccessControls = spPrimePAUController.accessControls();
+        _spPrimeDeployment.spPrimePAUAlmProxy       = spPrimePAUController.proxy();
+        _spPrimeDeployment.spPrimePAURateLimits     = spPrimePAUController.rateLimits();
+
+        _spPrimeDeployment.flcPAUController = IPAUFactory(Ethereum.SPARK_PAU_FACTORY).deployPAU(address(this), FLC_PAU_SALT);
+        IController flcPAUController        = IController(_spPrimeDeployment.flcPAUController);
+
+        _spPrimeDeployment.flcPAUAccessControls = flcPAUController.accessControls();
+        _spPrimeDeployment.flcPAUAlmProxy       = flcPAUController.proxy();
+        _spPrimeDeployment.flcPAURateLimits     = flcPAUController.rateLimits();
 
         // Step 3: Configure spPrime and the PAU stacks
 
+        _configureAdministeredAgents();
         _configureSpPrime();
         _configureSpPrimePAU(pasConfigurator);
         _configureFlcPAU(pasConfigurator);
 
         // Step 4: Hand admin rights over and revoke the spell's admin role
+
+        _handoffAdministeredAgents();
 
         _handoff(_spPrimeDeployment.spPrime, SPPRIME_ADMIN);
 
@@ -189,6 +239,20 @@ contract SparkEthereumDeploySpPrime {
     /**********************************************************************************************/
     /*** Configuration helpers                                                                  ***/
     /**********************************************************************************************/
+
+    function _configureAdministeredAgents() internal {
+        IAdministeredAgent sparkPlannerAdministeredAgent = IAdministeredAgent(_spPrimeDeployment.sparkPlannerAdministeredAgent);
+        IAdministeredAgent sparkVaultsAdministeredAgent  = IAdministeredAgent(_spPrimeDeployment.sparkVaultsAdministeredAgent);
+
+        sparkPlannerAdministeredAgent.addActor(SPARK_PLANNER_HOT_WALLET);
+        sparkPlannerAdministeredAgent.addRevoker(SPARK_LOW_THRESHOLD_MULTISIG);
+        sparkPlannerAdministeredAgent.addGrantor(SPARK_MEDIUM_THRESHOLD_MULTISIG);
+
+        sparkVaultsAdministeredAgent.addActor(_spPrimeDeployment.sparkPlannerAdministeredAgent);
+        sparkVaultsAdministeredAgent.addRevoker(SPARK_LOW_THRESHOLD_MULTISIG);
+        sparkVaultsAdministeredAgent.addRevoker(SOTER_LABS_REVOKER_MULTISIG);
+        sparkVaultsAdministeredAgent.addGrantor(SOTER_LABS_GRANTOR_MULTISIG);
+    }
 
     function _configureSpPrime() internal {
         ISparkPrimeVault spPrime = ISparkPrimeVault(_spPrimeDeployment.spPrime);
@@ -307,7 +371,7 @@ contract SparkEthereumDeploySpPrime {
         IALMProxy(almProxy).grantRole(IALMProxy(almProxy).CONTROLLER(),         controller);
         IRateLimits(rateLimits).grantRole(IRateLimits(rateLimits).CONTROLLER(), controller);
 
-        IAccessControls(accessControls).grantRole(ALLOCATOR_ROLE, ADMINISTERED_AGENT);
+        IAccessControls(accessControls).grantRole(ALLOCATOR_ROLE, _spPrimeDeployment.sparkVaultsAdministeredAgent);
 
         // The PAS Configurator administers the AccessControls and the RateLimits.
         IAccessControls(accessControls).grantRole(DEFAULT_ADMIN_ROLE, pasConfigurator);
@@ -317,6 +381,35 @@ contract SparkEthereumDeploySpPrime {
     /**********************************************************************************************/
     /*** Handoff                                                                                ***/
     /**********************************************************************************************/
+
+    function _handoffAdministeredAgents() internal {
+        IAdministeredAgent sparkPlannerAdministeredAgent = IAdministeredAgent(_spPrimeDeployment.sparkPlannerAdministeredAgent);
+        IAdministeredAgent sparkVaultsAdministeredAgent  = IAdministeredAgent(_spPrimeDeployment.sparkVaultsAdministeredAgent);
+
+        sparkPlannerAdministeredAgent.addAdmin(Ethereum.SPARK_PROXY);
+        sparkPlannerAdministeredAgent.removeAdmin(address(this));
+
+        require(
+            sparkPlannerAdministeredAgent.adminCount() == 1,
+            "SparkEthereumDeploySpPrime/spark-planner-administered-agent-admin-count-not-one"
+        );
+        require(
+            sparkPlannerAdministeredAgent.getAdmin(0) == Ethereum.SPARK_PROXY,
+            "SparkEthereumDeploySpPrime/spark-planner-administered-agent-admin-incorrect"
+        );
+
+        sparkVaultsAdministeredAgent.addAdmin(Ethereum.SPARK_PROXY);
+        sparkVaultsAdministeredAgent.removeAdmin(address(this));
+
+        require(
+            sparkVaultsAdministeredAgent.adminCount() == 1,
+            "SparkEthereumDeploySpPrime/spark-vaults-administered-agent-admin-count-not-one"
+        );
+        require(
+            sparkVaultsAdministeredAgent.getAdmin(0) == Ethereum.SPARK_PROXY,
+            "SparkEthereumDeploySpPrime/spark-vaults-administered-agent-admin-incorrect"
+        );
+    }
 
     function _handoff(address target, address admin) internal {
         IAccessControls(target).grantRole(DEFAULT_ADMIN_ROLE,  admin);
@@ -350,7 +443,6 @@ contract SparkEthereumDeploySpPrime {
         require(pauFactory.code.length            > 0, "SparkEthereumDeploySpPrime/no-pau-factory");
         require(pasConfigurator.code.length       > 0, "SparkEthereumDeploySpPrime/no-pas-configurator");
         require(PAU_BEACON.code.length            > 0, "SparkEthereumDeploySpPrime/no-pau-beacon");
-        require(ADMINISTERED_AGENT.code.length    > 0, "SparkEthereumDeploySpPrime/no-administered-agent");
 
         require(IPAUFactory(pauFactory).beacon() == PAU_BEACON, "SparkEthereumDeploySpPrime/invalid-pau-beacon");
     }

@@ -44,8 +44,7 @@ abstract contract SparkEthereumDeploySpPrimeTestBase is Test {
     bytes32 internal constant ALLOCATOR_ROLE     = keccak256("ALLOCATOR_ROLE");
     bytes32 internal constant CONTROLLER_ROLE    = keccak256("CONTROLLER");
 
-    address internal constant PAU_BEACON         = Ethereum.SPARK_BEACON;
-    address internal constant ADMINISTERED_AGENT = Ethereum.SPUSDC_PAU_ADMINISTERED_AGENT;
+    address internal constant PAU_BEACON = Ethereum.SPARK_BEACON;
 
     address internal constant SPUSDC = Ethereum.SPARK_VAULT_V2_SPUSDC;
 
@@ -66,6 +65,9 @@ abstract contract SparkEthereumDeploySpPrimeTestBase is Test {
     address internal pauFactory;
     address internal spPrimeImplementation;
     address internal pasConfigurator;
+
+    address internal sparkPlannerAdministeredAgent;
+    address internal sparkVaultsAdministeredAgent;
 
     ISparkPrimeVault internal spPrime;
 
@@ -93,6 +95,9 @@ abstract contract SparkEthereumDeploySpPrimeTestBase is Test {
 
         pasConfigurator = report.pasDeploymentReport.configurator;
         spPrime         = ISparkPrimeVault(report.spPrimeDeploymentReport.spPrime);
+
+        sparkPlannerAdministeredAgent = report.spPrimeDeploymentReport.sparkPlannerAdministeredAgent;
+        sparkVaultsAdministeredAgent  = report.spPrimeDeploymentReport.sparkVaultsAdministeredAgent;
 
         spPrimePAUAccessControls = report.spPrimeDeploymentReport.spPrimePAUAccessControls;
         spPrimePAUAlmProxy       = report.spPrimeDeploymentReport.spPrimePAUAlmProxy;
@@ -164,7 +169,7 @@ abstract contract SparkEthereumDeploySpPrimeTestBase is Test {
         _assertOnlyMember(rateLimits, CONTROLLER_ROLE, controller);
 
         // The AdministeredAgent is the only allocator
-        _assertOnlyMember(accessControls, ALLOCATOR_ROLE, ADMINISTERED_AGENT);
+        _assertOnlyMember(accessControls, ALLOCATOR_ROLE, sparkVaultsAdministeredAgent);
 
         // The PAU admin and the PAS Configurator administer the AccessControls and the RateLimits
         assertEq(IAccessControls(accessControls).getRoleMemberCount(DEFAULT_ADMIN_ROLE),       2);
@@ -238,13 +243,6 @@ contract SparkEthereumDeploySpPrimeTest_SpellPayload is SparkEthereumDeploySpPri
         vm.etch(PAU_BEACON, "");
 
         vm.expectRevert("SparkEthereumDeploySpPrime/no-pau-beacon");
-        new SparkEthereumDeploySpPrime(pasConfigurator);
-    }
-
-    function test_spell_noAdministeredAgent() external {
-        vm.etch(ADMINISTERED_AGENT, "");
-
-        vm.expectRevert("SparkEthereumDeploySpPrime/no-administered-agent");
         new SparkEthereumDeploySpPrime(pasConfigurator);
     }
 

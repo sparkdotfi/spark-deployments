@@ -18,7 +18,7 @@ library SparkDeployOrchestration {
         SparkEthereumDeploySpPrime.SpPrimeDeploymentReport spPrimeDeploymentReport;
     }
 
-    function deploy() public returns (Report memory report) {
+    function deploy() internal returns (Report memory report) {
         // Deploy PAS
         SparkEthereumDeployPAS pas = new SparkEthereumDeployPAS();
 

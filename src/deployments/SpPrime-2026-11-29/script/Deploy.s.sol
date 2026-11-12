@@ -18,29 +18,38 @@ contract Deploy is Script {
     }
 
     function _writeReport(SparkDeployOrchestration.Report memory report) internal {
-        string memory pas = "pasDeployment";
+        string memory pasKey = "pasDeployment";
 
-        pas = pas.serialize("beamState",    report.pasDeploymentReport.beamState);
-        pas = pas.serialize("configurator", report.pasDeploymentReport.configurator);
-        pas = pas.serialize("timelock",     report.pasDeploymentReport.timelock);
-        pas = pas.serialize("mom",          report.pasDeploymentReport.mom);
+        pasKey.serialize("beamState",    report.pasDeploymentReport.beamState);
+        pasKey.serialize("configurator", report.pasDeploymentReport.configurator);
+        pasKey.serialize("timelock",     report.pasDeploymentReport.timelock);
+        string memory pas = pasKey.serialize("mom", report.pasDeploymentReport.mom);
 
-        string memory spPrime = "spPrimeDeployment";
+        string memory spPrimeKey = "spPrimeDeployment";
 
-        spPrime = spPrime.serialize("spPrime",                  report.spPrimeDeploymentReport.spPrime);
-        spPrime = spPrime.serialize("spPrimePAUAccessControls", report.spPrimeDeploymentReport.spPrimePAUAccessControls);
-        spPrime = spPrime.serialize("spPrimePAUAlmProxy",       report.spPrimeDeploymentReport.spPrimePAUAlmProxy);
-        spPrime = spPrime.serialize("spPrimePAUController",     report.spPrimeDeploymentReport.spPrimePAUController);
-        spPrime = spPrime.serialize("spPrimePAURateLimits",     report.spPrimeDeploymentReport.spPrimePAURateLimits);
-        spPrime = spPrime.serialize("flcPAUAccessControls",     report.spPrimeDeploymentReport.flcPAUAccessControls);
-        spPrime = spPrime.serialize("flcPAUAlmProxy",           report.spPrimeDeploymentReport.flcPAUAlmProxy);
-        spPrime = spPrime.serialize("flcPAUController",         report.spPrimeDeploymentReport.flcPAUController);
-        spPrime = spPrime.serialize("flcPAURateLimits",         report.spPrimeDeploymentReport.flcPAURateLimits);
+        spPrimeKey.serialize("spPrime",                  report.spPrimeDeploymentReport.spPrime);
+        spPrimeKey.serialize("spPrimePAUAccessControls", report.spPrimeDeploymentReport.spPrimePAUAccessControls);
+        spPrimeKey.serialize("spPrimePAUAlmProxy",       report.spPrimeDeploymentReport.spPrimePAUAlmProxy);
+        spPrimeKey.serialize("spPrimePAUController",     report.spPrimeDeploymentReport.spPrimePAUController);
+        spPrimeKey.serialize("spPrimePAURateLimits",     report.spPrimeDeploymentReport.spPrimePAURateLimits);
+        spPrimeKey.serialize("flcPAUAccessControls",     report.spPrimeDeploymentReport.flcPAUAccessControls);
+        spPrimeKey.serialize("flcPAUAlmProxy",           report.spPrimeDeploymentReport.flcPAUAlmProxy);
+        spPrimeKey.serialize("flcPAUController",         report.spPrimeDeploymentReport.flcPAUController);
+        string memory spPrime = spPrimeKey.serialize("flcPAURateLimits", report.spPrimeDeploymentReport.flcPAURateLimits);
 
-        string memory json = "report";
+        string memory administeredAgentsKey = "administeredAgents";
 
-        json = json.serialize("pasDeployment",     pas);
-        json = json.serialize("spPrimeDeployment", spPrime);
+        administeredAgentsKey.serialize("sparkPlannerAdministeredAgent", report.spPrimeDeploymentReport.sparkPlannerAdministeredAgent);
+        string memory administeredAgents = administeredAgentsKey.serialize(
+            "sparkVaultsAdministeredAgent",
+            report.spPrimeDeploymentReport.sparkVaultsAdministeredAgent
+        );
+
+        string memory reportKey = "report";
+
+        reportKey.serialize("pasDeployment",     pas);
+        reportKey.serialize("spPrimeDeployment", spPrime);
+        string memory json = reportKey.serialize("administeredAgents", administeredAgents);
 
         json.write(string.concat(vm.projectRoot(), "/src/deployments/SpPrime-2026-11-29/report/report.json"));
     }
