@@ -12,11 +12,18 @@ import { TimelockController } from "../../../../lib/pas/lib/openzeppelin-contrac
 
 import { BeamState }    from "../../../../lib/pas/src/BeamState.sol";
 import { Configurator } from "../../../../lib/pas/src/Configurator.sol";
+import { PASMom }       from "../../../../lib/pas/src/PASMom.sol";
 import { Timelock }     from "../../../../lib/pas/src/timelock/Timelock.sol";
 
 import { SparkEthereumDeployPAS } from "../SparkEthereumDeployPAS.sol";
 
 import { SparkDeployOrchestration } from "../SparkDeployOrchestration.sol";
+
+interface IChiefLike {
+
+    function hat() external view returns (address);
+
+}
 
 abstract contract SparkEthereumDeployPASTestBase is Test {
 
@@ -27,6 +34,9 @@ abstract contract SparkEthereumDeployPASTestBase is Test {
     uint8 internal constant PAS_ROLE_IMMEDIATE = 2;
 
     address internal constant PAS_OWNER = Ethereum.SPARK_PROXY;  // BeamState ward and Timelock admin
+
+    address internal constant PAS_MOM_OWNER     = Ethereum.PAUSE_PROXY;  // PASMom owner
+    address internal constant PAS_MOM_AUTHORITY = Ethereum.CHIEF;        // PASMom authority, its hat can stop and pause
 
     // TODO: Replace with the final addresses, must match the spell.
     address internal constant PAS_CORE_COUNCIL = address(1);  // aBEAM Multisig
@@ -74,6 +84,9 @@ abstract contract SparkEthereumDeployPASTestBase is Test {
         vm.label(pasTimelock,     "pas.timelock");
         vm.label(pasMom,          "pas.mom");
         vm.label(PAS_OWNER,       "pas.owner");
+
+        vm.label(PAS_MOM_OWNER,     "pas.mom.owner");
+        vm.label(PAS_MOM_AUTHORITY, "pas.mom.authority");
     }
 
     /**********************************************************************************************/
@@ -114,8 +127,7 @@ contract SparkEthereumDeployPASTest_SpellPayload is SparkEthereumDeployPASTestBa
     }
 
     function test_spell_deployedAddresses() external view {
-        // TODO: Add pasMom once the spell deploys the Sky PAS Mom.
-        address[3] memory deployed = [pasBeamState, pasConfigurator, pasTimelock];
+        address[4] memory deployed = [pasBeamState, pasConfigurator, pasTimelock, pasMom];
 
         for (uint256 i; i < deployed.length; ++i) {
             assertGt(deployed[i].code.length, 0);
@@ -137,6 +149,8 @@ contract SparkEthereumDeployPASTest_SpellPayload is SparkEthereumDeployPASTestBa
 
         assertEq(BeamState(pasBeamState).wards(spell),     0);
         assertEq(BeamState(pasBeamState).userRoles(spell), bytes32(0));
+
+        assertTrue(PASMom(pasMom).owner() != spell);
     }
 
 }
@@ -379,6 +393,51 @@ contract SparkEthereumDeployPASTest_PAS is SparkEthereumDeployPASTestBase {
         assertEq(address(uint160(uint256(allEvents[11].topics[3]))), address(spell));
     }
 
+    function test_pasMom_state() external view {
+        PASMom mom = PASMom(pasMom);
+
+        assertEq(address(mom.beamState()), pasBeamState);
+        assertEq(address(mom.timelock()),  pasTimelock);
+        assertEq(mom.owner(),              PAS_MOM_OWNER);
+        assertEq(mom.authority(),          PAS_MOM_AUTHORITY);
+    }
+
+    // The Mom only holds what it needs: a BeamState ward to stop() it and the Timelock PAUSER_ROLE to pause() it.
+    function test_pasMom_permissions() external view {
+        BeamState beamState = BeamState(pasBeamState);
+        Timelock  timelock  = Timelock(payable(pasTimelock));
+
+        assertEq(beamState.wards(pasMom),     1);
+        assertEq(beamState.userRoles(pasMom), bytes32(0));
+
+        assertEq(timelock.hasRole(timelock.PAUSER_ROLE(),    pasMom), true);
+        assertEq(timelock.hasRole(DEFAULT_ADMIN_ROLE,        pasMom), false);
+        assertEq(timelock.hasRole(timelock.PROPOSER_ROLE(),  pasMom), false);
+        assertEq(timelock.hasRole(timelock.CANCELLER_ROLE(), pasMom), false);
+        assertEq(timelock.hasRole(timelock.EXECUTOR_ROLE(),  pasMom), false);
+    }
+
+    function test_pasMom_events() external view {
+        Vm.Log[] memory allEvents = _getEvents(pasMom, bytes32(0));
+
+        // No StopBeamState or PauseTimelock: the Mom is never used during deployment.
+        assertEq(allEvents.length, 4);
+
+        // PASMom constructor sets the deployer (spell) as owner
+        assertEq(allEvents[0].topics[0],                            PASMom.SetOwner.selector);
+        assertEq(address(uint160(uint256(allEvents[0].topics[1]))), address(spell));
+
+        // PASDeploy.deployMom sets the spell as owner again
+        assertEq(allEvents[1].topics[0],                            PASMom.SetOwner.selector);
+        assertEq(address(uint160(uint256(allEvents[1].topics[1]))), address(spell));
+
+        assertEq(allEvents[2].topics[0],                            PASMom.SetAuthority.selector);
+        assertEq(address(uint160(uint256(allEvents[2].topics[1]))), PAS_MOM_AUTHORITY);
+
+        assertEq(allEvents[3].topics[0],                            PASMom.SetOwner.selector);
+        assertEq(address(uint160(uint256(allEvents[3].topics[1]))), PAS_MOM_OWNER);
+    }
+
 }
 
 contract SparkEthereumDeployPASTest_E2E is SparkEthereumDeployPASTestBase {
@@ -599,6 +658,167 @@ contract SparkEthereumDeployPASTest_E2E is SparkEthereumDeployPASTestBase {
         BeamState(pasBeamState).rely(user);
 
         assertEq(BeamState(pasBeamState).wards(user), 1);
+    }
+
+    // The Chief hat stops BeamState through the Mom, bypassing the Timelock delay
+    function test_pasMom_hatStops() external {
+        BeamState beamState = BeamState(pasBeamState);
+        PASMom    mom       = PASMom(pasMom);
+
+        address hat = IChiefLike(PAS_MOM_AUTHORITY).hat();
+
+        // The PAS owner and the Core Council act on BeamState directly, not through the Mom
+        address[4] memory unauthorized = [user, PAS_OWNER, PAS_CORE_COUNCIL, address(spell)];
+
+        for (uint256 i; i < unauthorized.length; ++i) {
+            vm.prank(unauthorized[i]);
+            vm.expectRevert("PASMom/not-authorized");
+            mom.stop();
+        }
+
+        assertEq(beamState.stopped(), false);
+
+        vm.expectEmit(pasBeamState);
+        emit BeamState.Stop();
+        vm.expectEmit(pasMom);
+        emit PASMom.StopBeamState();
+
+        vm.prank(hat);
+        mom.stop();
+
+        assertEq(beamState.stopped(), true);
+    }
+
+    // The Chief hat pauses the Timelock through the Mom
+    function test_pasMom_hatPauses() external {
+        Timelock timelock = Timelock(payable(pasTimelock));
+        PASMom   mom      = PASMom(pasMom);
+
+        address hat = IChiefLike(PAS_MOM_AUTHORITY).hat();
+
+        address[4] memory unauthorized = [user, PAS_OWNER, PAS_CORE_COUNCIL, address(spell)];
+
+        for (uint256 i; i < unauthorized.length; ++i) {
+            vm.prank(unauthorized[i]);
+            vm.expectRevert("PASMom/not-authorized");
+            mom.pause();
+        }
+
+        assertEq(timelock.paused(), false);
+
+        vm.expectEmit(pasTimelock);
+        emit Pausable.Paused(pasMom);
+        vm.expectEmit(pasMom);
+        emit PASMom.PauseTimelock();
+
+        vm.prank(hat);
+        mom.pause();
+
+        assertEq(timelock.paused(), true);
+    }
+
+    // The Mom owner is authorized on its own, without going through the Chief
+    function test_pasMom_ownerStopsAndPauses() external {
+        assertEq(BeamState(pasBeamState).stopped(),       false);
+        assertEq(Timelock(payable(pasTimelock)).paused(), false);
+
+        vm.startPrank(PAS_MOM_OWNER);
+        PASMom(pasMom).stop();
+        PASMom(pasMom).pause();
+        vm.stopPrank();
+
+        assertEq(BeamState(pasBeamState).stopped(),       true);
+        assertEq(Timelock(payable(pasTimelock)).paused(), true);
+    }
+
+    // Only the Mom owner administers it: neither the PAS owner nor the hat can change its owner or authority
+    function test_pasMom_onlyOwnerAdministers() external {
+        PASMom mom = PASMom(pasMom);
+
+        address hat = IChiefLike(PAS_MOM_AUTHORITY).hat();
+
+        address[4] memory notOwners = [PAS_OWNER, hat, address(spell), user];
+
+        for (uint256 i; i < notOwners.length; ++i) {
+            vm.startPrank(notOwners[i]);
+
+            vm.expectRevert("PASMom/not-owner");
+            mom.setOwner(notOwners[i]);
+
+            vm.expectRevert("PASMom/not-owner");
+            mom.setAuthority(notOwners[i]);
+
+            vm.stopPrank();
+        }
+
+        assertEq(mom.owner(),     PAS_MOM_OWNER);
+        assertEq(mom.authority(), PAS_MOM_AUTHORITY);
+
+        // Removing the authority takes the emergency powers away from the hat
+
+        vm.prank(PAS_MOM_OWNER);
+        mom.setAuthority(address(0));
+
+        vm.prank(hat);
+        vm.expectRevert("PASMom/not-authorized");
+        mom.stop();
+
+        vm.prank(hat);
+        vm.expectRevert("PASMom/not-authorized");
+        mom.pause();
+    }
+
+    // The hat halts PAS through the Mom, then the PAS owner unpauses and the Core Council restarts BeamState
+    function test_pasMom_emergencyAndRecovery() external {
+        BeamState beamState = BeamState(pasBeamState);
+        Timelock  timelock  = Timelock(payable(pasTimelock));
+        PASMom    mom       = PASMom(pasMom);
+
+        address hat = IChiefLike(PAS_MOM_AUTHORITY).hat();
+
+        assertEq(beamState.stopped(), false);
+        assertEq(timelock.paused(),   false);
+
+        vm.startPrank(hat);
+        mom.stop();
+        mom.pause();
+        vm.stopPrank();
+
+        assertEq(beamState.stopped(), true);
+        assertEq(timelock.paused(),   true);
+
+        // While the Timelock is paused, the Core Council cannot schedule the restart
+
+        ( address[] memory targets, uint256[] memory values, bytes[] memory payloads ) =
+            _singleCall(pasBeamState, abi.encodeCall(beamState.start, ()));
+
+        vm.prank(PAS_CORE_COUNCIL);
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        timelock.scheduleBatch(targets, values, payloads, bytes32(0), bytes32(0), PAS_MIN_DELAY);
+
+        // The hat cannot unpause, only the PAS owner can
+
+        vm.prank(hat);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, hat, DEFAULT_ADMIN_ROLE)
+        );
+        timelock.unpause();
+
+        vm.prank(PAS_OWNER);
+        timelock.unpause();
+
+        // The restart goes through the Timelock delay
+
+        vm.prank(PAS_CORE_COUNCIL);
+        timelock.scheduleBatch(targets, values, payloads, bytes32(0), bytes32(0), PAS_MIN_DELAY);
+
+        skip(PAS_MIN_DELAY);
+
+        vm.prank(user);
+        timelock.executeBatch(targets, values, payloads, bytes32(0), bytes32(0));
+
+        assertEq(beamState.stopped(), false);
+        assertEq(timelock.paused(),   false);
     }
 
     function _singleCall(address target, bytes memory payload)
