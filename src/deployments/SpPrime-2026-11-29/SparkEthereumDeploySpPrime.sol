@@ -88,7 +88,6 @@ contract SparkEthereumDeploySpPrime {
     address internal constant SPPRIME_UNPAUSER          = address(3);
     address internal constant SPPRIME_OPERATOR          = address(4);
     address internal constant SPPRIME_REDEEM_FEE_SETTER = address(5);
-    address internal constant SPPRIME_LOSS_MANAGER      = address(6);
 
     address internal constant SPUSDC = Ethereum.SPARK_VAULT_V2_SPUSDC;
 
@@ -166,7 +165,7 @@ contract SparkEthereumDeploySpPrime {
     /*** Constructor                                                                            ***/
     /**********************************************************************************************/
 
-    constructor(address pasConfigurator) {
+    constructor(address pasConfigurator, address lossManagerTimelock) {
         _assertPreconditions(Ethereum.SPARK_PAU_FACTORY, Ethereum.SPPRIME_IMPL, pasConfigurator);
 
         // Step 1: Deploy spPrime with the spell as temporary admin
@@ -215,9 +214,8 @@ contract SparkEthereumDeploySpPrime {
         _spPrimeDeployment.flcPAURateLimits     = flcPAUController.rateLimits();
 
         // Step 3: Configure spPrime and the PAU stacks
-
         _configureAdministeredAgents();
-        _configureSpPrime();
+        _configureSpPrime(lossManagerTimelock);
         _configureSpPrimePAU(pasConfigurator);
         _configureFlcPAU(pasConfigurator);
 
@@ -254,7 +252,7 @@ contract SparkEthereumDeploySpPrime {
         sparkVaultsAdministeredAgent.addGrantor(SOTER_LABS_GRANTOR_MULTISIG);
     }
 
-    function _configureSpPrime() internal {
+    function _configureSpPrime(address lossManagerTimelock) internal {
         ISparkPrimeVault spPrime = ISparkPrimeVault(_spPrimeDeployment.spPrime);
 
         spPrime.setVSRBounds(MIN_VSR, MAX_VSR);
@@ -264,7 +262,7 @@ contract SparkEthereumDeploySpPrime {
         spPrime.grantRole(spPrime.UNPAUSER_ROLE(),          SPPRIME_UNPAUSER);
         spPrime.grantRole(spPrime.OPERATOR_ROLE(),          SPPRIME_OPERATOR);
         spPrime.grantRole(spPrime.REDEEM_FEE_SETTER_ROLE(), SPPRIME_REDEEM_FEE_SETTER);
-        spPrime.grantRole(spPrime.LOSS_MANAGER_ROLE(),      SPPRIME_LOSS_MANAGER);
+        spPrime.grantRole(spPrime.LOSS_MANAGER_ROLE(),      lossManagerTimelock);
 
         // The spPrimePAU pulls spUSDC out of spPrime through its ALMProxy.
         spPrime.grantRole(spPrime.TAKER_ROLE(), _spPrimeDeployment.spPrimePAUAlmProxy);

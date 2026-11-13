@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.34;
 
-import { SparkEthereumDeployPAS }     from "./SparkEthereumDeployPAS.sol";
-import { SparkEthereumDeploySpPrime } from "./SparkEthereumDeploySpPrime.sol";
+import { SparkEthereumDeployLossManagerTimelock } from "./SparkEthereumDeployLossManagerTimelock.sol";
+import { SparkEthereumDeployPAS }                 from "./SparkEthereumDeployPAS.sol";
+import { SparkEthereumDeploySpPrime }             from "./SparkEthereumDeploySpPrime.sol";
 
 /**
  * @title  SparkDeployOrchestration
@@ -12,13 +13,22 @@ import { SparkEthereumDeploySpPrime } from "./SparkEthereumDeploySpPrime.sol";
 library SparkDeployOrchestration {
 
     struct Report {
-        address                                            pasDeployment;
-        SparkEthereumDeployPAS.PASDeploymentReport         pasDeploymentReport;
-        address                                            spPrimeDeployment;
-        SparkEthereumDeploySpPrime.SpPrimeDeploymentReport spPrimeDeploymentReport;
+        address                                                                    pasDeployment;
+        SparkEthereumDeployPAS.PASDeploymentReport                                 pasDeploymentReport;
+        address                                                                    spPrimeDeployment;
+        SparkEthereumDeploySpPrime.SpPrimeDeploymentReport                         spPrimeDeploymentReport;
+        address                                                                    lossManagerTimelock;
+        SparkEthereumDeployLossManagerTimelock.LossManagerTimelockDeploymentReport lossManagerTimelockDeploymentReport;
     }
 
     function deploy() internal returns (Report memory report) {
+        // Deploy Loss Manager Timelock
+
+        SparkEthereumDeployLossManagerTimelock lossManagerTimelock = new SparkEthereumDeployLossManagerTimelock();
+
+        report.lossManagerTimelock                = address(lossManagerTimelock);
+        report.lossManagerTimelockDeploymentReport = lossManagerTimelock.lossManagerTimelockDeployment();
+
         // Deploy PAS
         SparkEthereumDeployPAS pas = new SparkEthereumDeployPAS();
 
@@ -26,7 +36,10 @@ library SparkDeployOrchestration {
         report.pasDeploymentReport = pas.pasDeployment();
 
         // Deploy SpPrime.
-        SparkEthereumDeploySpPrime spPrime = new SparkEthereumDeploySpPrime(report.pasDeploymentReport.configurator);
+        SparkEthereumDeploySpPrime spPrime = new SparkEthereumDeploySpPrime(
+            report.pasDeploymentReport.configurator,
+            report.lossManagerTimelockDeploymentReport.lossManagerTimelock
+        );
 
         report.spPrimeDeployment       = address(spPrime);
         report.spPrimeDeploymentReport = spPrime.spPrimeDeployment();

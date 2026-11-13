@@ -54,7 +54,6 @@ abstract contract SparkEthereumDeploySpPrimeTestBase is Test {
     address internal constant SPPRIME_UNPAUSER          = address(3);
     address internal constant SPPRIME_OPERATOR          = address(4);
     address internal constant SPPRIME_REDEEM_FEE_SETTER = address(5);
-    address internal constant SPPRIME_LOSS_MANAGER      = address(6);
     address internal constant SPPRIME_PAU_ADMIN         = address(7);
     address internal constant FLC_PAU_ADMIN             = address(8);
 
@@ -65,6 +64,7 @@ abstract contract SparkEthereumDeploySpPrimeTestBase is Test {
     address internal pauFactory;
     address internal spPrimeImplementation;
     address internal pasConfigurator;
+    address internal lossManagerTimelock;
 
     address internal sparkPlannerAdministeredAgent;
     address internal sparkVaultsAdministeredAgent;
@@ -93,8 +93,9 @@ abstract contract SparkEthereumDeploySpPrimeTestBase is Test {
 
         spell = address(report.spPrimeDeployment);
 
-        pasConfigurator = report.pasDeploymentReport.configurator;
-        spPrime         = ISparkPrimeVault(report.spPrimeDeploymentReport.spPrime);
+        pasConfigurator     = report.pasDeploymentReport.configurator;
+        lossManagerTimelock = report.lossManagerTimelockDeploymentReport.lossManagerTimelock;
+        spPrime             = ISparkPrimeVault(report.spPrimeDeploymentReport.spPrime);
 
         sparkPlannerAdministeredAgent = report.spPrimeDeploymentReport.sparkPlannerAdministeredAgent;
         sparkVaultsAdministeredAgent  = report.spPrimeDeploymentReport.sparkVaultsAdministeredAgent;
@@ -231,19 +232,19 @@ contract SparkEthereumDeploySpPrimeTest_SpellPayload is SparkEthereumDeploySpPri
         vm.chainId(2);
 
         vm.expectRevert("SparkEthereumDeploySpPrime/invalid-chain-id");
-        new SparkEthereumDeploySpPrime(pasConfigurator);
+        new SparkEthereumDeploySpPrime(pasConfigurator, lossManagerTimelock);
     }
 
     function test_spell_noPASConfigurator() external {
         vm.expectRevert("SparkEthereumDeploySpPrime/no-pas-configurator");
-        new SparkEthereumDeploySpPrime(makeAddr("pasConfigurator"));
+        new SparkEthereumDeploySpPrime(makeAddr("pasConfigurator"), lossManagerTimelock);
     }
 
     function test_spell_noPAUBeacon() external {
         vm.etch(PAU_BEACON, "");
 
         vm.expectRevert("SparkEthereumDeploySpPrime/no-pau-beacon");
-        new SparkEthereumDeploySpPrime(pasConfigurator);
+        new SparkEthereumDeploySpPrime(pasConfigurator, lossManagerTimelock);
     }
 
     function test_spell_deployedAddresses() external view {
@@ -339,7 +340,7 @@ contract SparkEthereumDeploySpPrime_spPrime is SparkEthereumDeploySpPrimeTestBas
         _assertOnlyMember(address(spPrime), spPrime.UNPAUSER_ROLE(),          SPPRIME_UNPAUSER);
         _assertOnlyMember(address(spPrime), spPrime.OPERATOR_ROLE(),          SPPRIME_OPERATOR);
         _assertOnlyMember(address(spPrime), spPrime.REDEEM_FEE_SETTER_ROLE(), SPPRIME_REDEEM_FEE_SETTER);
-        _assertOnlyMember(address(spPrime), spPrime.LOSS_MANAGER_ROLE(),      SPPRIME_LOSS_MANAGER);
+        _assertOnlyMember(address(spPrime), spPrime.LOSS_MANAGER_ROLE(),      lossManagerTimelock);
         _assertOnlyMember(address(spPrime), spPrime.TAKER_ROLE(),             spPrimePAUAlmProxy);
     }
 

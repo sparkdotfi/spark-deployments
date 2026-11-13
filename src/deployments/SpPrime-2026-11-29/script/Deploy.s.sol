@@ -45,11 +45,16 @@ contract Deploy is Script {
             report.spPrimeDeploymentReport.sparkVaultsAdministeredAgent
         );
 
+        string memory lossManagerTimelockKey = "lossManagerTimelock";
+
+        string memory lossManagerTimelock = lossManagerTimelockKey.serialize("lossManagerTimelock", report.lossManagerTimelockDeploymentReport.lossManagerTimelock);
+
         string memory reportKey = "report";
 
         reportKey.serialize("pasDeployment",     pas);
         reportKey.serialize("spPrimeDeployment", spPrime);
-        string memory json = reportKey.serialize("administeredAgents", administeredAgents);
+        reportKey.serialize("administeredAgents", administeredAgents);
+        string memory json = reportKey.serialize("lossManagerTimelock", lossManagerTimelock);
 
         json.write(string.concat(vm.projectRoot(), "/src/deployments/SpPrime-2026-11-29/report/report.json"));
     }

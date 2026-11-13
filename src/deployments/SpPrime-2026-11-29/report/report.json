@@ -1,5 +1,26 @@
 {
   "administeredAgents": {
-    "sparkVaultsAdministeredAgent": "0x00445caa5Acaca8F43c99D690d44f58cD2c51ab6"
+    "sparkPlannerAdministeredAgent": "0x1285eAe4E94FCF1c23E43EFe23b65C6b28DEbda6",
+    "sparkVaultsAdministeredAgent": "0x42f99670083a2d74269B276f51E0bd2c9e090e02"
+  },
+  "lossManagerTimelock": {
+    "lossManagerTimelock": "0xC7f2Cf4845C6db0e1a1e91ED41Bcd0FcC1b0E141"
+  },
+  "pasDeployment": {
+    "beamState": "0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f",
+    "configurator": "0x2e234DAe75C793f67A35089C9d99245E1C58470b",
+    "mom": "0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9",
+    "timelock": "0xF62849F9A0B5Bf2913b396098F7c7019b51A820a"
+  },
+  "spPrimeDeployment": {
+    "flcPAUAccessControls": "0xf4F1E95d9d462017667A6f6B11578Bc1D1d2F35d",
+    "flcPAUAlmProxy": "0xBCD71830aCa723462b7E3aAb3328BFa0AB240Ee5",
+    "flcPAUController": "0xd77cbC85034e5662e644339205Cff40a6c55960B",
+    "flcPAURateLimits": "0x5F80f2c645ade4cbe2F9b5b2C55284b56498e616",
+    "spPrime": "0xFEfC6BAF87cF3684058D62Da40Ff3A795946Ab06",
+    "spPrimePAUAccessControls": "0xA9BD6aCA8EdD7D20C8909ADa3d9a0F75e6426Eb9",
+    "spPrimePAUAlmProxy": "0xB8a5dCE1d5a58A7eA911119F76B56E2A96583EB7",
+    "spPrimePAUController": "0xF952fF5ddE6c20cdBE5e68F4a2bfa6D23b908B38",
+    "spPrimePAURateLimits": "0x2af6Bcd1B98BaD353094962a506B87E72Dd9dcc3"
   }
 }
