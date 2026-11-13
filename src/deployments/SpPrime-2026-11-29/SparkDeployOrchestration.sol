@@ -13,36 +13,36 @@ import { SparkEthereumDeploySpPrime }             from "./SparkEthereumDeploySpP
 library SparkDeployOrchestration {
 
     struct Report {
-        address                                                                    pasDeployment;
+        address                                                                    deployPASPayload;
         SparkEthereumDeployPAS.PASDeploymentReport                                 pasDeploymentReport;
-        address                                                                    spPrimeDeployment;
+        address                                                                    deploySpPrimePayload;
         SparkEthereumDeploySpPrime.SpPrimeDeploymentReport                         spPrimeDeploymentReport;
-        address                                                                    lossManagerTimelock;
+        address                                                                    deployLossManagerTimelockPayload;
         SparkEthereumDeployLossManagerTimelock.LossManagerTimelockDeploymentReport lossManagerTimelockDeploymentReport;
     }
 
     function deploy() internal returns (Report memory report) {
         // Deploy Loss Manager Timelock
 
-        SparkEthereumDeployLossManagerTimelock lossManagerTimelock = new SparkEthereumDeployLossManagerTimelock();
+        SparkEthereumDeployLossManagerTimelock deployLossManagerTimelockPayload = new SparkEthereumDeployLossManagerTimelock();
 
-        report.lossManagerTimelock                = address(lossManagerTimelock);
-        report.lossManagerTimelockDeploymentReport = lossManagerTimelock.lossManagerTimelockDeployment();
+        report.deployLossManagerTimelockPayload    = address(deployLossManagerTimelockPayload);
+        report.lossManagerTimelockDeploymentReport = deployLossManagerTimelockPayload.lossManagerTimelockDeployment();
 
         // Deploy PAS
-        SparkEthereumDeployPAS pas = new SparkEthereumDeployPAS();
+        SparkEthereumDeployPAS deployPASPayload = new SparkEthereumDeployPAS();
 
-        report.pasDeployment       = address(pas);
-        report.pasDeploymentReport = pas.pasDeployment();
+        report.deployPASPayload    = address(deployPASPayload);
+        report.pasDeploymentReport = deployPASPayload.pasDeployment();
 
         // Deploy SpPrime.
-        SparkEthereumDeploySpPrime spPrime = new SparkEthereumDeploySpPrime(
+        SparkEthereumDeploySpPrime deploySpPrimePayload = new SparkEthereumDeploySpPrime(
             report.pasDeploymentReport.configurator,
             report.lossManagerTimelockDeploymentReport.lossManagerTimelock
         );
 
-        report.spPrimeDeployment       = address(spPrime);
-        report.spPrimeDeploymentReport = spPrime.spPrimeDeployment();
+        report.deploySpPrimePayload    = address(deploySpPrimePayload);
+        report.spPrimeDeploymentReport = deploySpPrimePayload.spPrimeDeployment();
     }
 
 }

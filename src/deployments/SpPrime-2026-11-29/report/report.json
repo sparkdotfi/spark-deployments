@@ -3,6 +3,11 @@
     "sparkPlannerAdministeredAgent": "0x1285eAe4E94FCF1c23E43EFe23b65C6b28DEbda6",
     "sparkVaultsAdministeredAgent": "0x42f99670083a2d74269B276f51E0bd2c9e090e02"
   },
+  "deployPayloads": {
+    "deployLossManagerTimelockPayload": "0x5b73C5498c1E3b4dbA84de0F1833c4a029d90519",
+    "deployPASPayload": "0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496",
+    "deploySpPrimePayload": "0x34A1D3fff3958843C43aD80F30b94c510645C316"
+  },
   "lossManagerTimelock": {
     "lossManagerTimelock": "0xC7f2Cf4845C6db0e1a1e91ED41Bcd0FcC1b0E141"
   },

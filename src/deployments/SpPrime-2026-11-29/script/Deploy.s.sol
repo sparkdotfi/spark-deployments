@@ -49,12 +49,20 @@ contract Deploy is Script {
 
         string memory lossManagerTimelock = lossManagerTimelockKey.serialize("lossManagerTimelock", report.lossManagerTimelockDeploymentReport.lossManagerTimelock);
 
+        string memory deployPayloadsKey = "deployPayloads";
+
+        deployPayloadsKey.serialize("deployPASPayload",     report.deployPASPayload);
+        deployPayloadsKey.serialize("deploySpPrimePayload", report.deploySpPrimePayload);
+        string memory deployPayloads = deployPayloadsKey.serialize("deployLossManagerTimelockPayload", report.deployLossManagerTimelockPayload);
+
         string memory reportKey = "report";
 
-        reportKey.serialize("pasDeployment",     pas);
-        reportKey.serialize("spPrimeDeployment", spPrime);
-        reportKey.serialize("administeredAgents", administeredAgents);
-        string memory json = reportKey.serialize("lossManagerTimelock", lossManagerTimelock);
+        reportKey.serialize("pasDeployment",       pas);
+        reportKey.serialize("spPrimeDeployment",   spPrime);
+        reportKey.serialize("administeredAgents",  administeredAgents);
+        reportKey.serialize("lossManagerTimelock", lossManagerTimelock);
+
+        string memory json = reportKey.serialize("deployPayloads", deployPayloads);
 
         json.write(string.concat(vm.projectRoot(), "/src/deployments/SpPrime-2026-11-29/report/report.json"));
     }

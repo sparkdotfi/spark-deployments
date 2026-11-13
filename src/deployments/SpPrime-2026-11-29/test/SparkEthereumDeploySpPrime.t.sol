@@ -91,7 +91,7 @@ abstract contract SparkEthereumDeploySpPrimeTestBase is Test {
 
         report = SparkDeployOrchestration.deploy();
 
-        spell = address(report.spPrimeDeployment);
+        spell = address(report.deploySpPrimePayload);
 
         pasConfigurator     = report.pasDeploymentReport.configurator;
         lossManagerTimelock = report.lossManagerTimelockDeploymentReport.lossManagerTimelock;

@@ -65,7 +65,7 @@ abstract contract SparkEthereumDeployPASTestBase is Test {
 
         report = SparkDeployOrchestration.deploy();
 
-        spell = report.pasDeployment;
+        spell = report.deployPASPayload;
 
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
