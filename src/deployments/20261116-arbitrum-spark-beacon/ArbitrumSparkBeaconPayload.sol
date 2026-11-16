@@ -8,10 +8,10 @@ import { BeaconConfig } from "../../../lib/diamond-pau/src/libraries/BeaconConfi
 import { Arbitrum } from "../../../lib/spark-address-registry/src/Arbitrum.sol";
 
 /**
- * @title  SparkArbitrumDeployBeacon
+ * @title  ArbitrumSparkBeaconPayload
  * @notice Single use deployment payload for deploying and configuring Spark Beacon on Arbitrum.
  */
-contract SparkArbitrumDeployBeacon {
+contract ArbitrumSparkBeaconPayload {
 
     /**********************************************************************************************/
     /*** Constants                                                                              ***/
@@ -42,7 +42,7 @@ contract SparkArbitrumDeployBeacon {
     /**********************************************************************************************/
 
     constructor() {
-        require(block.chainid == ARBITRUM, "SparkArbitrumDeployBeacon/invalid-chain-id");
+        require(block.chainid == ARBITRUM, "ArbitrumSparkBeaconPayload/invalid-chain-id");
 
         // Step 1: Deploy Beacon with the spell as temporary owner
 
@@ -85,15 +85,15 @@ contract SparkArbitrumDeployBeacon {
 
         require(
             beacon.getRoleMemberCount(DEFAULT_ADMIN_ROLE) == 1,
-            "SparkArbitrumDeployBeacon/admin-count-incorrect"
+            "ArbitrumSparkBeaconPayload/admin-count-incorrect"
         );
         require(
             beacon.hasRole(DEFAULT_ADMIN_ROLE, Arbitrum.SPARK_EXECUTOR),
-            "SparkArbitrumDeployBeacon/incorrect-admin"
+            "ArbitrumSparkBeaconPayload/incorrect-admin"
         );
         require(
             !beacon.hasRole(DEFAULT_ADMIN_ROLE, address(this)),
-            "SparkArbitrumDeployBeacon/spell-still-admin"
+            "ArbitrumSparkBeaconPayload/spell-still-admin"
         );
     }
 

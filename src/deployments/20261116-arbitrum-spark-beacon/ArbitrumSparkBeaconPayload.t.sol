@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.34;
 
-import { Test, Vm } from "../../../../lib/forge-std/src/Test.sol";
+import { Test, Vm } from "../../../lib/forge-std/src/Test.sol";
 
-import { Arbitrum } from "../../../../lib/spark-address-registry/src/Arbitrum.sol";
+import { IAccessControl } from "../../../lib/diamond-pau/lib/openzeppelin-contracts/contracts/access/IAccessControl.sol";
 
-import { IAccessControl } from "../../../../lib/diamond-pau/lib/openzeppelin-contracts/contracts/access/IAccessControl.sol";
+import { IBeacon }                 from "../../../lib/diamond-pau/src/interfaces/IBeacon.sol";
+import { IEnumerableIntegrations } from "../../../lib/diamond-pau/src/interfaces/IEnumerableIntegrations.sol";
 
-import { IBeacon }                 from "../../../../lib/diamond-pau/src/interfaces/IBeacon.sol";
-import { IEnumerableIntegrations } from "../../../../lib/diamond-pau/src/interfaces/IEnumerableIntegrations.sol";
+import { BeaconConfig } from "../../../lib/diamond-pau/src/libraries/BeaconConfig.sol";
 
-import { BeaconConfig } from "../../../../lib/diamond-pau/src/libraries/BeaconConfig.sol";
+import { Arbitrum } from "../../../lib/spark-address-registry/src/Arbitrum.sol";
 
-import { SparkArbitrumDeployBeacon } from "../SparkArbitrumDeployBeacon.sol";
+import { ArbitrumSparkBeaconPayload } from "./ArbitrumSparkBeaconPayload.sol";
 
-abstract contract SparkArbitrumDeployBeaconTestBase is Test {
+abstract contract ArbitrumSparkBeaconPayloadTestBase is Test {
 
     bytes32 internal constant DEFAULT_ADMIN_ROLE = 0x00;
 
@@ -37,10 +37,10 @@ abstract contract SparkArbitrumDeployBeaconTestBase is Test {
 
         vm.recordLogs();
 
-        deploymentPayload = address(new SparkArbitrumDeployBeacon());
+        deploymentPayload = address(new ArbitrumSparkBeaconPayload());
 
-        SparkArbitrumDeployBeacon.Report memory report
-            =  SparkArbitrumDeployBeacon(deploymentPayload).report();
+        ArbitrumSparkBeaconPayload.Report memory report
+            =  ArbitrumSparkBeaconPayload(deploymentPayload).report();
 
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
@@ -149,13 +149,13 @@ abstract contract SparkArbitrumDeployBeaconTestBase is Test {
 
 }
 
-contract TestDeploymentPayload is SparkArbitrumDeployBeaconTestBase {
+contract TestDeploymentPayload is ArbitrumSparkBeaconPayloadTestBase {
 
     function test_deploymentPayload_invalidChainId() external {
         vm.chainId(1);
 
-        vm.expectRevert("SparkArbitrumDeployBeacon/invalid-chain-id");
-        new SparkArbitrumDeployBeacon();
+        vm.expectRevert("ArbitrumSparkBeaconPayload/invalid-chain-id");
+        new ArbitrumSparkBeaconPayload();
     }
 
     function test_deploymentPayload_holdsNoRoles() external view {
@@ -164,7 +164,7 @@ contract TestDeploymentPayload is SparkArbitrumDeployBeaconTestBase {
 
 }
 
-contract TestBeacon is SparkArbitrumDeployBeaconTestBase {
+contract TestBeacon is ArbitrumSparkBeaconPayloadTestBase {
 
     function test_beacon_roles() external view {
         IBeacon beacon_ = IBeacon(beacon);
