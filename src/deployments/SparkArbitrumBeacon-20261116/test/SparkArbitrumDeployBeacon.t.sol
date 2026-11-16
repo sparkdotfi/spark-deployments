@@ -50,10 +50,16 @@ abstract contract SparkArbitrumDeployBeaconTestBase is Test {
 
         beacon = report.beacon;
 
-        vm.label(deploymentPayload,       "deploymentPayload");
-        vm.label(beacon,                  "beacon");
-        vm.label(Arbitrum.SPARK_EXECUTOR, "beacon.admin");
-        vm.label(Arbitrum.CCTP_FACET,     "cctpFacet");
+        vm.label(deploymentPayload,             "deploymentPayload");
+        vm.label(beacon,                        "beacon");
+        vm.label(Arbitrum.SPARK_EXECUTOR,       "beacon.admin");
+        vm.label(Arbitrum.AAVE_FACET,           "aaveFacet");
+        vm.label(Arbitrum.CCTP_FACET,           "cctpFacet");
+        vm.label(Arbitrum.ERC4626_FACET,        "erc4626Facet");
+        vm.label(Arbitrum.LAYER_ZERO_FACET,     "layerZeroFacet");
+        vm.label(Arbitrum.SPARK_VAULT_FACET,    "sparkVaultFacet");
+        vm.label(Arbitrum.TRANSFER_ASSET_FACET, "transferAssetFacet");
+        vm.label(Arbitrum.UNISWAP_V4_FACET,     "uniswapV4Facet");
     }
 
     /**********************************************************************************************/
@@ -66,13 +72,13 @@ abstract contract SparkArbitrumDeployBeaconTestBase is Test {
     {
         integrations = new IEnumerableIntegrations.Integration[](INTEGRATION_COUNT);
 
-        integrations[0] = BeaconConfig.buildSparkVaultIntegration(Arbitrum.SPARK_VAULT_FACET);
-        integrations[1] = BeaconConfig.buildTransferAssetIntegration(Arbitrum.TRANSFER_ASSET_FACET);
+        integrations[0] = BeaconConfig.buildAaveIntegration(Arbitrum.AAVE_FACET);
+        integrations[1] = BeaconConfig.buildCCTPIntegration(Arbitrum.CCTP_FACET);
         integrations[2] = BeaconConfig.buildERC4626Integration(Arbitrum.ERC4626_FACET);
-        integrations[3] = BeaconConfig.buildAaveIntegration(Arbitrum.AAVE_FACET);
-        integrations[4] = BeaconConfig.buildUniswapV4Integration(Arbitrum.UNISWAP_V4_FACET);
-        integrations[5] = BeaconConfig.buildLayerZeroIntegration(Arbitrum.LAYER_ZERO_FACET);
-        integrations[6] = BeaconConfig.buildCCTPIntegration(Arbitrum.CCTP_FACET);
+        integrations[3] = BeaconConfig.buildLayerZeroIntegration(Arbitrum.LAYER_ZERO_FACET);
+        integrations[4] = BeaconConfig.buildSparkVaultIntegration(Arbitrum.SPARK_VAULT_FACET);
+        integrations[5] = BeaconConfig.buildTransferAssetIntegration(Arbitrum.TRANSFER_ASSET_FACET);
+        integrations[6] = BeaconConfig.buildUniswapV4Integration(Arbitrum.UNISWAP_V4_FACET);
     }
 
     // Returns the logs emitted by `target` during deployment with the given `topic0`, in emission order.
@@ -112,21 +118,6 @@ abstract contract SparkArbitrumDeployBeaconTestBase is Test {
 
     function _toAddress(bytes32 topic) internal pure returns (address) {
         return address(uint160(uint256(topic)));
-    }
-
-    // Integration ids are short ASCII strings, e.g. "CCTP_FACET".
-    function _toString(bytes32 id) internal pure returns (string memory) {
-        uint256 length;
-
-        while (length < 32 && id[length] != 0) ++length;
-
-        bytes memory result = new bytes(length);
-
-        for (uint256 i; i < length; ++i) {
-            result[i] = id[i];
-        }
-
-        return string(result);
     }
 
     /**********************************************************************************************/
@@ -229,7 +220,7 @@ contract TestBeacon is SparkArbitrumDeployBeaconTestBase {
 
                 assertTrue(
                     _hasSelector(facet, delegateSelector),
-                    string.concat(_toString(actual[i].id), ": facet missing delegate selector ", vm.toString(abi.encodePacked(delegateSelector)))
+                    string.concat(vm.toString(facet), ": missing delegate selector ", vm.toString(abi.encodePacked(delegateSelector)))
                 );
             }
         }

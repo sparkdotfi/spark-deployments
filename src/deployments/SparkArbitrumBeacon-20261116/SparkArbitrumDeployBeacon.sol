@@ -64,13 +64,13 @@ contract SparkArbitrumDeployBeacon {
     /**********************************************************************************************/
 
     function _configure() internal {
+        BeaconConfig.setAaveIntegration(_report.beacon,          Arbitrum.AAVE_FACET);
+        BeaconConfig.setCCTPIntegration(_report.beacon,          Arbitrum.CCTP_FACET);
+        BeaconConfig.setERC4626Integration(_report.beacon,       Arbitrum.ERC4626_FACET);
+        BeaconConfig.setLayerZeroIntegration(_report.beacon,     Arbitrum.LAYER_ZERO_FACET);
         BeaconConfig.setSparkVaultIntegration(_report.beacon,    Arbitrum.SPARK_VAULT_FACET);
         BeaconConfig.setTransferAssetIntegration(_report.beacon, Arbitrum.TRANSFER_ASSET_FACET);
-        BeaconConfig.setERC4626Integration(_report.beacon,       Arbitrum.ERC4626_FACET);
-        BeaconConfig.setAaveIntegration(_report.beacon,          Arbitrum.AAVE_FACET);
         BeaconConfig.setUniswapV4Integration(_report.beacon,     Arbitrum.UNISWAP_V4_FACET);
-        BeaconConfig.setLayerZeroIntegration(_report.beacon,     Arbitrum.LAYER_ZERO_FACET);
-        BeaconConfig.setCCTPIntegration(_report.beacon,          Arbitrum.CCTP_FACET);
     }
 
     /**********************************************************************************************/
