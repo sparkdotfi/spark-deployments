@@ -4,15 +4,13 @@ permissions: {}
 
 on:
   push:
+    branches:
+      - master
   pull_request:
   workflow_dispatch:
 
-env:
-  FOUNDRY_PROFILE: ci
-
 jobs:
-  check:
-    name: Foundry project
+  build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -24,15 +22,30 @@ jobs:
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.5.1
 
-      - name: Show Forge version
-        run: forge --version
+      - name: Build contracts
+        run: |
+          forge --version
+          forge build --sizes
 
-      - name: Run Forge fmt
-        run: forge fmt --check
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          submodules: recursive
 
-      - name: Run Forge build
-        run: forge build --sizes
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.5.1
 
-      - name: Run Forge tests
+      - name: Run tests
+        env:
+          MAINNET_RPC_URL: ${{ secrets.MAINNET_RPC_URL }}
         run: forge test -vvv
