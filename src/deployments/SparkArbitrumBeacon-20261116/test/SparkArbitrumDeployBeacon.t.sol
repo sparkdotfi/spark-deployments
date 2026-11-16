@@ -20,6 +20,11 @@ abstract contract SparkArbitrumDeployBeaconTestBase is Test {
 
     uint256 internal constant INTEGRATION_COUNT = 7;
 
+    // ControllerSharedStorage.SHARED_CONTROLLER_STORAGE_LOCATION, where `accessControls` is the
+    // first field. Used by _hasSelector.
+    bytes32 internal constant SHARED_CONTROLLER_STORAGE_LOCATION =
+        0x77adf60bdbfedf206f8b8310f3d364080b7f61dcc0e46caac13c29bb1eb5cc00;
+
     address internal deploymentPayload;
     address internal beacon;
 
@@ -90,6 +95,19 @@ abstract contract SparkArbitrumDeployBeaconTestBase is Test {
 
     function _isEvent(Vm.Log memory log, address target, bytes32 topic0) internal pure returns (bool) {
         return log.emitter == target && (topic0 == bytes32(0) || log.topics[0] == topic0);
+    }
+
+    function _hasSelector(address facet, bytes4 selector) internal returns (bool) {
+        assertGt(facet.code.length, 0, "facet has no code");
+
+        vm.store(facet, SHARED_CONTROLLER_STORAGE_LOCATION, bytes32(uint256(uint160(Arbitrum.PAU_ACCESS_CONTROLS))));
+
+        // Pad so the ABI decoder does not empty-revert on missing arguments.
+        bytes memory payload = abi.encodePacked(selector, new bytes(1024));
+
+        ( bool success, bytes memory revertData ) = facet.call(payload);
+
+        return success || revertData.length > 0;
     }
 
     function _toAddress(bytes32 topic) internal pure returns (address) {
@@ -190,16 +208,30 @@ contract TestBeacon is SparkArbitrumDeployBeaconTestBase {
         assertEq(_toAddress(revokeLogs[0].topics[3]), deploymentPayload);
     }
 
-    function test_beacon_integrations() external view {
+    function test_beacon_integrations() external {
         IEnumerableIntegrations.Integration[] memory expected = _expectedIntegrations();
         IEnumerableIntegrations.Integration[] memory actual   = IBeacon(beacon).integrations();
 
         assertEq(actual.length, expected.length);
 
         for (uint256 i; i < expected.length; ++i) {
-            assertEq(actual[i].id, expected[i].id);
+            assertEq(actual[i].id,                  expected[i].id);
+            assertEq(actual[i].config.facet,        expected[i].config.facet);
+            assertEq(actual[i].config.wires.length, expected[i].config.wires.length);
 
             _assertIntegration(beacon, expected[i]);
+
+            address facet = actual[i].config.facet;
+
+            // Every wired delegate selector must be implemented by the facet it dispatches to.
+            for (uint256 j; j < actual[i].config.wires.length; ++j) {
+                bytes4 delegateSelector = actual[i].config.wires[j].delegateSelector;
+
+                assertTrue(
+                    _hasSelector(facet, delegateSelector),
+                    string.concat(_toString(actual[i].id), ": facet missing delegate selector ", vm.toString(abi.encodePacked(delegateSelector)))
+                );
+            }
         }
     }
 
