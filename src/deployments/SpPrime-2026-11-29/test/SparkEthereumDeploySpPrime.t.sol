@@ -22,6 +22,9 @@ import { IERC4626Controller }       from "../../../../lib/diamond-pau/src/facets
 import { ISparkVaultController }    from "../../../../lib/diamond-pau/src/facets/spark-vault/ISparkVaultController.sol";
 import { ITransferAssetController } from "../../../../lib/diamond-pau/src/facets/transfer-asset/ITransferAssetController.sol";
 
+import { AdministeredAgentFactory } from "../../../../lib/pau-administered-agent/src/AdministeredAgentFactory.sol";
+import { IAdministeredAgent }       from "../../../../lib/pau-administered-agent/src/interfaces/IAdministeredAgent.sol";
+
 import { SparkEthereumDeploySpPrime } from "../SparkEthereumDeploySpPrime.sol";
 
 import { SparkDeployOrchestration } from "../SparkDeployOrchestration.sol";
@@ -56,6 +59,16 @@ abstract contract SparkEthereumDeploySpPrimeTestBase is Test {
     address internal constant SPPRIME_REDEEM_FEE_SETTER = address(5);
     address internal constant SPPRIME_PAU_ADMIN         = address(7);
     address internal constant FLC_PAU_ADMIN             = address(8);
+
+    address internal constant ADMINISTERED_AGENT_FACTORY = Ethereum.SPARK_ADMINISTERED_AGENT_FACTORY;
+    address internal constant ADMINISTERED_AGENT_ADMIN   = Ethereum.SPARK_PROXY;
+
+    // TODO: Replace with the final addresses, must match the spell.
+    address internal constant SOTER_LABS_GRANTOR_MULTISIG     = address(7);
+    address internal constant SOTER_LABS_REVOKER_MULTISIG     = address(8);
+    address internal constant SPARK_PLANNER_HOT_WALLET        = address(9);
+    address internal constant SPARK_LOW_THRESHOLD_MULTISIG    = address(10);
+    address internal constant SPARK_MEDIUM_THRESHOLD_MULTISIG = address(11);
 
     SparkDeployOrchestration.Report internal report;
 
@@ -123,6 +136,9 @@ abstract contract SparkEthereumDeploySpPrimeTestBase is Test {
         vm.label(flcPAUAlmProxy,           "flcPAU.almProxy");
         vm.label(flcPAUController,         "flcPAU.controller");
         vm.label(flcPAURateLimits,         "flcPAU.rateLimits");
+
+        vm.label(sparkPlannerAdministeredAgent, "sparkPlannerAdministeredAgent");
+        vm.label(sparkVaultsAdministeredAgent,  "sparkVaultsAdministeredAgent");
     }
 
     /**********************************************************************************************/
@@ -269,6 +285,22 @@ contract SparkEthereumDeploySpPrimeTest_SpellPayload is SparkEthereumDeploySpPri
         assertEq(factory.isALMProxy(flcPAUAlmProxy),             true);
         assertEq(factory.isController(flcPAUController),         true);
         assertEq(factory.isRateLimits(flcPAURateLimits),         true);
+
+        // AdministeredAgents are deployed by the AdministeredAgentFactory
+
+        address[2] memory agents = [sparkPlannerAdministeredAgent, sparkVaultsAdministeredAgent];
+
+        assertNotEq(agents[0], agents[1]);
+
+        for (uint256 i; i < agents.length; ++i) {
+            assertGt(agents[i].code.length, 0);
+
+            assertEq(AdministeredAgentFactory(ADMINISTERED_AGENT_FACTORY).isInstance(agents[i]), true);
+
+            for (uint256 j; j < deployed.length; ++j) {
+                assertNotEq(agents[i], deployed[j]);
+            }
+        }
     }
 
     function test_spell_holdsNoRoles() external view {
@@ -294,6 +326,56 @@ contract SparkEthereumDeploySpPrimeTest_SpellPayload is SparkEthereumDeploySpPri
                 assertEq(IAccessControls(deployed[i]).hasRole(roles[j], address(spell)), false);
             }
         }
+
+        address[2] memory agents = [sparkPlannerAdministeredAgent, sparkVaultsAdministeredAgent];
+
+        for (uint256 i; i < agents.length; ++i) {
+            IAdministeredAgent agent = IAdministeredAgent(payable(agents[i]));
+
+            assertEq(agent.getIsAdmin(address(spell)),   false);
+            assertEq(agent.getIsActor(address(spell)),   false);
+            assertEq(agent.getIsGrantor(address(spell)), false);
+            assertEq(agent.getIsRevoker(address(spell)), false);
+        }
+    }
+
+}
+
+contract SparkEthereumDeploySpPrimeTest_administeredAgents is SparkEthereumDeploySpPrimeTestBase {
+
+    // The Spark Planner hot wallet acts through the Spark Planner AdministeredAgent
+    function test_sparkPlannerAdministeredAgent_roles() external view {
+        IAdministeredAgent agent = IAdministeredAgent(payable(sparkPlannerAdministeredAgent));
+
+        assertEq(agent.adminCount(),   1);
+        assertEq(agent.actorCount(),   1);
+        assertEq(agent.grantorCount(), 1);
+        assertEq(agent.revokerCount(), 1);
+
+        assertEq(agent.getAdmin(0),   ADMINISTERED_AGENT_ADMIN);
+        assertEq(agent.getActor(0),   SPARK_PLANNER_HOT_WALLET);
+        assertEq(agent.getGrantor(0), SPARK_MEDIUM_THRESHOLD_MULTISIG);
+        assertEq(agent.getRevoker(0), SPARK_LOW_THRESHOLD_MULTISIG);
+    }
+
+    // The Spark Vaults AdministeredAgent holds ALLOCATOR_ROLE on both PAUs, and its only actor is the Spark Planner
+    // AdministeredAgent
+    function test_sparkVaultsAdministeredAgent_roles() external view {
+        IAdministeredAgent agent = IAdministeredAgent(payable(sparkVaultsAdministeredAgent));
+
+        assertEq(agent.adminCount(),   1);
+        assertEq(agent.actorCount(),   1);
+        assertEq(agent.grantorCount(), 1);
+        assertEq(agent.revokerCount(), 2);
+
+        assertEq(agent.getAdmin(0),   ADMINISTERED_AGENT_ADMIN);
+        assertEq(agent.getActor(0),   sparkPlannerAdministeredAgent);
+        assertEq(agent.getGrantor(0), SOTER_LABS_GRANTOR_MULTISIG);
+        assertEq(agent.getRevoker(0), SPARK_LOW_THRESHOLD_MULTISIG);
+        assertEq(agent.getRevoker(1), SOTER_LABS_REVOKER_MULTISIG);
+
+        _assertOnlyMember(spPrimePAUAccessControls, ALLOCATOR_ROLE, sparkVaultsAdministeredAgent);
+        _assertOnlyMember(flcPAUAccessControls,     ALLOCATOR_ROLE, sparkVaultsAdministeredAgent);
     }
 
 }
@@ -466,6 +548,235 @@ contract SparkDeploymentsEthereumSpPrimeTest_E2E is SparkEthereumDeploySpPrimeTe
 
         assertEq(spPrime.balanceOf(user),         0);
         assertEq(spPrime.claimableAssetsOf(user), 0);
+    }
+
+    // The hot wallet allocates through hot wallet -> Spark Planner agent -> Spark Vaults agent -> spPrimePAU
+    function test_administeredAgents_hotWalletAllocates() external {
+        _requestDeposit(user, 10_000e6);
+
+        uint256 shares = IERC20Like(SPUSDC).balanceOf(address(spPrime));
+
+        assertGt(shares, 0);
+
+        bytes32 takeKey     = ISparkVaultController(spPrimePAUController).sparkVault_getTakeRateLimitKey(address(spPrime));
+        bytes32 transferKey = ITransferAssetController(spPrimePAUController).transferAsset_getTransferRateLimitKey(
+            SPUSDC,
+            address(spPrime)
+        );
+
+        // Take spUSDC out of spPrime into the spPrimePAU ALMProxy
+
+        _allocate(
+            SPARK_PLANNER_HOT_WALLET,
+            spPrimePAUController,
+            abi.encodeCall(ISparkVaultController.sparkVault_take, (address(spPrime), shares))
+        );
+
+        assertEq(IERC20Like(SPUSDC).balanceOf(address(spPrime)),   0);
+        assertEq(IERC20Like(SPUSDC).balanceOf(spPrimePAUAlmProxy), shares);
+
+        assertEq(IRateLimits(spPrimePAURateLimits).getCurrentRateLimit(takeKey), 100_000_000e6 - shares);
+
+        // Return the spUSDC to spPrime
+
+        _allocate(
+            SPARK_PLANNER_HOT_WALLET,
+            spPrimePAUController,
+            abi.encodeCall(ITransferAssetController.transferAsset_transfer, (SPUSDC, address(spPrime), shares))
+        );
+
+        assertEq(IERC20Like(SPUSDC).balanceOf(address(spPrime)),   shares);
+        assertEq(IERC20Like(SPUSDC).balanceOf(spPrimePAUAlmProxy), 0);
+
+        assertEq(IRateLimits(spPrimePAURateLimits).getCurrentRateLimit(transferKey), 100_000_000e6 - shares);
+    }
+
+    // Allocation is only possible through the full agent chain
+    function test_administeredAgents_allocateOnlyThroughChain() external {
+        _requestDeposit(user, 10_000e6);
+
+        bytes memory takeCall = abi.encodeCall(ISparkVaultController.sparkVault_take, (address(spPrime), 1));
+
+        // The hot wallet is not an allocator on the PAU
+        vm.prank(SPARK_PLANNER_HOT_WALLET);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                SPARK_PLANNER_HOT_WALLET,
+                ALLOCATOR_ROLE
+            )
+        );
+        ISparkVaultController(spPrimePAUController).sparkVault_take(address(spPrime), 1);
+
+        // The hot wallet is not an actor on the Spark Vaults agent
+        vm.prank(SPARK_PLANNER_HOT_WALLET);
+        vm.expectRevert(IAdministeredAgent.NotActor.selector);
+        IAdministeredAgent(payable(sparkVaultsAdministeredAgent)).call(spPrimePAUController, takeCall);
+
+        // The Spark Planner agent is not an allocator on the PAU, it has to go through the Spark Vaults agent
+        vm.prank(SPARK_PLANNER_HOT_WALLET);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                sparkPlannerAdministeredAgent,
+                ALLOCATOR_ROLE
+            )
+        );
+        IAdministeredAgent(payable(sparkPlannerAdministeredAgent)).call(spPrimePAUController, takeCall);
+
+        // Admins, grantors, revokers and anyone else cannot act through the Spark Planner agent
+        address[5] memory nonActors = [
+            ADMINISTERED_AGENT_ADMIN,
+            SPARK_MEDIUM_THRESHOLD_MULTISIG,
+            SPARK_LOW_THRESHOLD_MULTISIG,
+            address(spell),
+            user
+        ];
+
+        for (uint256 i; i < nonActors.length; ++i) {
+            vm.prank(nonActors[i]);
+            vm.expectRevert(IAdministeredAgent.NotActor.selector);
+            IAdministeredAgent(payable(sparkPlannerAdministeredAgent)).call(sparkVaultsAdministeredAgent, "");
+        }
+    }
+
+    // The Spark Low Threshold Multisig revokes the hot wallet, the Spark Medium Threshold Multisig grants it back
+    function test_sparkPlannerAdministeredAgent_revokeAndGrant() external {
+        IAdministeredAgent agent = IAdministeredAgent(payable(sparkPlannerAdministeredAgent));
+
+        vm.prank(SPARK_MEDIUM_THRESHOLD_MULTISIG);
+        vm.expectRevert(IAdministeredAgent.NotRevoker.selector);
+        agent.removeActor(SPARK_PLANNER_HOT_WALLET);
+
+        vm.prank(SPARK_LOW_THRESHOLD_MULTISIG);
+        agent.removeActor(SPARK_PLANNER_HOT_WALLET);
+
+        assertEq(agent.getIsActor(SPARK_PLANNER_HOT_WALLET), false);
+
+        vm.prank(SPARK_PLANNER_HOT_WALLET);
+        vm.expectRevert(IAdministeredAgent.NotActor.selector);
+        agent.call(sparkVaultsAdministeredAgent, "");
+
+        vm.prank(SPARK_LOW_THRESHOLD_MULTISIG);
+        vm.expectRevert(IAdministeredAgent.NotGrantor.selector);
+        agent.addActor(SPARK_PLANNER_HOT_WALLET);
+
+        vm.prank(SPARK_MEDIUM_THRESHOLD_MULTISIG);
+        agent.addActor(SPARK_PLANNER_HOT_WALLET);
+
+        assertEq(agent.getIsActor(SPARK_PLANNER_HOT_WALLET), true);
+    }
+
+    // Either revoker cuts the Spark Planner agent off from the PAUs, the Soter Labs Grantor Multisig restores it
+    function test_sparkVaultsAdministeredAgent_revokeAndGrant() external {
+        IAdministeredAgent agent = IAdministeredAgent(payable(sparkVaultsAdministeredAgent));
+
+        _requestDeposit(user, 10_000e6);
+
+        bytes memory takeCall = abi.encodeCall(ISparkVaultController.sparkVault_take, (address(spPrime), 1));
+
+        // The grantors cannot revoke, the Spark Planner agent grantor has no power here
+        address[2] memory notRevokers = [SOTER_LABS_GRANTOR_MULTISIG, SPARK_MEDIUM_THRESHOLD_MULTISIG];
+
+        for (uint256 i; i < notRevokers.length; ++i) {
+            vm.prank(notRevokers[i]);
+            vm.expectRevert(IAdministeredAgent.NotRevoker.selector);
+            agent.removeActor(sparkPlannerAdministeredAgent);
+        }
+
+        address[2] memory revokers = [SPARK_LOW_THRESHOLD_MULTISIG, SOTER_LABS_REVOKER_MULTISIG];
+
+        for (uint256 i; i < revokers.length; ++i) {
+            vm.prank(revokers[i]);
+            agent.removeActor(sparkPlannerAdministeredAgent);
+
+            assertEq(agent.getIsActor(sparkPlannerAdministeredAgent), false);
+
+            // The hot wallet can no longer reach the PAU, the Spark Vaults agent revert bubbles up
+            vm.prank(SPARK_PLANNER_HOT_WALLET);
+            vm.expectRevert(IAdministeredAgent.NotActor.selector);
+            IAdministeredAgent(payable(sparkPlannerAdministeredAgent)).call(
+                sparkVaultsAdministeredAgent,
+                abi.encodeCall(IAdministeredAgent.call, (spPrimePAUController, takeCall))
+            );
+
+            // Revokers and the Spark Planner agent grantor cannot grant it back
+            address[2] memory notGrantors = [revokers[i], SPARK_MEDIUM_THRESHOLD_MULTISIG];
+
+            for (uint256 j; j < notGrantors.length; ++j) {
+                vm.prank(notGrantors[j]);
+                vm.expectRevert(IAdministeredAgent.NotGrantor.selector);
+                agent.addActor(sparkPlannerAdministeredAgent);
+            }
+
+            vm.prank(SOTER_LABS_GRANTOR_MULTISIG);
+            agent.addActor(sparkPlannerAdministeredAgent);
+
+            assertEq(agent.getIsActor(sparkPlannerAdministeredAgent), true);
+        }
+
+        // The restored chain allocates again
+        _allocate(SPARK_PLANNER_HOT_WALLET, spPrimePAUController, takeCall);
+
+        assertEq(IERC20Like(SPUSDC).balanceOf(spPrimePAUAlmProxy), 1);
+    }
+
+    // Only the Spark Proxy administers the AdministeredAgents
+    function test_administeredAgents_onlyAdminAdministers() external {
+        address[2] memory agents = [sparkPlannerAdministeredAgent, sparkVaultsAdministeredAgent];
+
+        address[7] memory notAdmins = [
+            address(spell),
+            SPARK_PLANNER_HOT_WALLET,
+            SPARK_LOW_THRESHOLD_MULTISIG,
+            SPARK_MEDIUM_THRESHOLD_MULTISIG,
+            SOTER_LABS_GRANTOR_MULTISIG,
+            SOTER_LABS_REVOKER_MULTISIG,
+            user
+        ];
+
+        for (uint256 i; i < agents.length; ++i) {
+            IAdministeredAgent agent = IAdministeredAgent(payable(agents[i]));
+
+            for (uint256 j; j < notAdmins.length; ++j) {
+                vm.startPrank(notAdmins[j]);
+
+                vm.expectRevert(IAdministeredAgent.NotAdmin.selector);
+                agent.addAdmin(notAdmins[j]);
+
+                vm.expectRevert(IAdministeredAgent.NotAdmin.selector);
+                agent.removeAdmin(ADMINISTERED_AGENT_ADMIN);
+
+                vm.expectRevert(IAdministeredAgent.NotAdmin.selector);
+                agent.addGrantor(notAdmins[j]);
+
+                vm.expectRevert(IAdministeredAgent.NotAdmin.selector);
+                agent.addRevoker(notAdmins[j]);
+
+                vm.stopPrank();
+            }
+
+            // The Spark Proxy can rotate the agent's grantors and revokers
+
+            vm.startPrank(ADMINISTERED_AGENT_ADMIN);
+
+            agent.addGrantor(user);
+            agent.addRevoker(user);
+
+            vm.stopPrank();
+
+            assertEq(agent.getIsGrantor(user), true);
+            assertEq(agent.getIsRevoker(user), true);
+        }
+    }
+
+    // Executes `data` on `target` as `actor` -> Spark Planner agent -> Spark Vaults agent -> target
+    function _allocate(address actor, address target, bytes memory data) internal {
+        vm.prank(actor);
+        IAdministeredAgent(payable(sparkPlannerAdministeredAgent)).call(
+            sparkVaultsAdministeredAgent,
+            abi.encodeCall(IAdministeredAgent.call, (target, data))
+        );
     }
 
     function _setCapacity(uint256 capacity) internal {
