@@ -38,6 +38,13 @@ interface IAdministeredAgentFactory {
 
 }
 
+/**
+ * @title  ArbitrumSparkSpUSDTPayload
+ * @notice One-shot deployment payload for Arbitrum. In its constructor it deploys the planner and
+ *         Spark Vaults AdministeredAgents and the spUSDT PAU, configures their roles, facets,
+ *         rate limits and the LayerZero recipient on Ethereum, then hands all admin rights to the
+ *         Spark Executor and revokes its own.
+ */
 contract ArbitrumSparkSpUSDTPayload {
 
     /**********************************************************************************************/
@@ -84,7 +91,7 @@ contract ArbitrumSparkSpUSDTPayload {
         address spUSDTPAURateLimits;
     }
 
-    Report public report;
+    Report internal _report;
 
     /**********************************************************************************************/
     /*** Constructor                                                                            ***/
@@ -97,11 +104,11 @@ contract ArbitrumSparkSpUSDTPayload {
 
         IAdministeredAgentFactory administeredAgentFactory = IAdministeredAgentFactory(Arbitrum.SPARK_ADMINISTERED_AGENT_FACTORY);
 
-        report.plannerAgent = administeredAgentFactory.deploy(
+        _report.plannerAgent = administeredAgentFactory.deploy(
             address(this),
             SPARK_PLANNER_ADMINISTERED_AGENT_SALT
         );
-        report.sparkVaultsAgent = administeredAgentFactory.deploy(
+        _report.sparkVaultsAgent = administeredAgentFactory.deploy(
             address(this),
             SPARK_VAULTS_ADMINISTERED_AGENT_SALT
         );
@@ -110,10 +117,10 @@ contract ArbitrumSparkSpUSDTPayload {
 
         IPAUFactory pauFactory = IPAUFactory(Arbitrum.SPARK_PAU_FACTORY);
 
-        report.spUSDTPAUController     = pauFactory.deployPAU(address(this), SPARK_SPUSDT_PAU_SALT);
-        report.spUSDTPAUAccessControls = IController(report.spUSDTPAUController).accessControls();
-        report.spUSDTPAUALMProxy       = IController(report.spUSDTPAUController).proxy();
-        report.spUSDTPAURateLimits     = IController(report.spUSDTPAUController).rateLimits();
+        _report.spUSDTPAUController     = pauFactory.deployPAU(address(this), SPARK_SPUSDT_PAU_SALT);
+        _report.spUSDTPAUAccessControls = IController(_report.spUSDTPAUController).accessControls();
+        _report.spUSDTPAUALMProxy       = IController(_report.spUSDTPAUController).proxy();
+        _report.spUSDTPAURateLimits     = IController(_report.spUSDTPAUController).rateLimits();
 
         // Step 2: Configure the AdministeredAgents
 
@@ -127,9 +134,13 @@ contract ArbitrumSparkSpUSDTPayload {
 
         _handoffAdministeredAgents();
 
-        _handoff(report.spUSDTPAUAccessControls, Arbitrum.SPARK_EXECUTOR);
-        _handoff(report.spUSDTPAUALMProxy,       Arbitrum.SPARK_EXECUTOR);
-        _handoff(report.spUSDTPAURateLimits,     Arbitrum.SPARK_EXECUTOR);
+        _handoff(_report.spUSDTPAUAccessControls, Arbitrum.SPARK_EXECUTOR);
+        _handoff(_report.spUSDTPAUALMProxy,       Arbitrum.SPARK_EXECUTOR);
+        _handoff(_report.spUSDTPAURateLimits,     Arbitrum.SPARK_EXECUTOR);
+    }
+
+    function report() public view returns (Report memory) {
+        return _report;
     }
 
     /**********************************************************************************************/
@@ -137,8 +148,8 @@ contract ArbitrumSparkSpUSDTPayload {
     /**********************************************************************************************/
 
     function _configureAdministeredAgents() internal {
-        IAdministeredAgent plannerAgent     = IAdministeredAgent(report.plannerAgent);
-        IAdministeredAgent sparkVaultsAgent = IAdministeredAgent(report.sparkVaultsAgent);
+        IAdministeredAgent plannerAgent     = IAdministeredAgent(_report.plannerAgent);
+        IAdministeredAgent sparkVaultsAgent = IAdministeredAgent(_report.sparkVaultsAgent);
 
         // TODO: change this accordingly.
         plannerAgent.addAdmin(Arbitrum.SPARK_EXECUTOR);
@@ -147,23 +158,23 @@ contract ArbitrumSparkSpUSDTPayload {
         plannerAgent.addGrantor(SPARK_MEDIUM_THRESHOLD_MULTISIG);
 
         sparkVaultsAgent.addAdmin(Arbitrum.SPARK_EXECUTOR);
-        sparkVaultsAgent.addActor(report.plannerAgent);
+        sparkVaultsAgent.addActor(_report.plannerAgent);
         sparkVaultsAgent.addRevoker(SPARK_LOW_THRESHOLD_MULTISIG);
         sparkVaultsAgent.addRevoker(SOTER_LABS_REVOKER_MULTISIG);
         sparkVaultsAgent.addGrantor(SOTER_LABS_GRANTOR_MULTISIG);
     }
 
     function _configureSpUSDTPAU() internal {
-        IAccessControls accessControls = IAccessControls(report.spUSDTPAUAccessControls);
-        IALMProxy       almProxy       = IALMProxy(report.spUSDTPAUALMProxy);
-        IController     controller     = IController(report.spUSDTPAUController);
-        IRateLimits     rateLimits     = IRateLimits(report.spUSDTPAURateLimits);
+        IAccessControls accessControls = IAccessControls(_report.spUSDTPAUAccessControls);
+        IALMProxy       almProxy       = IALMProxy(_report.spUSDTPAUALMProxy);
+        IController     controller     = IController(_report.spUSDTPAUController);
+        IRateLimits     rateLimits     = IRateLimits(_report.spUSDTPAURateLimits);
 
         // Roles configuration
 
-        almProxy.grantRole(almProxy.CONTROLLER(),     report.spUSDTPAUController);
-        rateLimits.grantRole(rateLimits.CONTROLLER(), report.spUSDTPAUController);
-        accessControls.grantRole(ALLOCATOR_ROLE,      report.sparkVaultsAgent);
+        almProxy.grantRole(almProxy.CONTROLLER(),     _report.spUSDTPAUController);
+        rateLimits.grantRole(rateLimits.CONTROLLER(), _report.spUSDTPAUController);
+        accessControls.grantRole(ALLOCATOR_ROLE,      _report.sparkVaultsAgent);
 
         // Onboaring facets
 
@@ -181,31 +192,31 @@ contract ArbitrumSparkSpUSDTPayload {
         // SparkVault rate limits configuration
 
         rateLimits.setUnlimitedRateLimitData(
-            ISparkVaultController(report.spUSDTPAUController)
+            ISparkVaultController(_report.spUSDTPAUController)
                 .sparkVault_getTakeRateLimitKey(Arbitrum.SPARK_VAULT_V2_SPUSDT)
         );
 
         // TransferAsset rate limits configuration
 
         rateLimits.setUnlimitedRateLimitData(
-            ITransferAssetController(report.spUSDTPAUController)
+            ITransferAssetController(_report.spUSDTPAUController)
                 .transferAsset_getTransferRateLimitKey(Arbitrum.USDT0, Arbitrum.SPARK_VAULT_V2_SPUSDT)
         );
 
         // LayerZero rate limits configuration
 
         rateLimits.setUnlimitedRateLimitData(
-            ILayerZeroController(report.spUSDTPAUController)
+            ILayerZeroController(_report.spUSDTPAUController)
                 .layerZero_getTransferRateLimitKey(Arbitrum.USDT_OFT, PEER, LZ_ETHEREUM_EID, Arbitrum.USDT0)
         );
 
         // LayerZero set receipient
-        ILayerZeroController(report.spUSDTPAUController).layerZero_setRecipient(LZ_ETHEREUM_EID, ETHEREUM_SPUSDT_ALM_PROXY);
+        ILayerZeroController(_report.spUSDTPAUController).layerZero_setRecipient(LZ_ETHEREUM_EID, ETHEREUM_SPUSDT_ALM_PROXY);
     }
 
     function _handoffAdministeredAgents() internal {
-        IAdministeredAgent plannerAgent     = IAdministeredAgent(report.plannerAgent);
-        IAdministeredAgent sparkVaultsAgent = IAdministeredAgent(report.sparkVaultsAgent);
+        IAdministeredAgent plannerAgent     = IAdministeredAgent(_report.plannerAgent);
+        IAdministeredAgent sparkVaultsAgent = IAdministeredAgent(_report.sparkVaultsAgent);
 
         plannerAgent.removeAdmin(address(this));
 
