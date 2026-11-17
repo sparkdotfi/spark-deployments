@@ -35,10 +35,7 @@ abstract contract ArbitrumSparkBeaconPayloadTestBase is Test {
 
         deploymentPayload = address(new ArbitrumSparkBeaconPayload());
 
-        ArbitrumSparkBeaconPayload.Report memory report
-            =  ArbitrumSparkBeaconPayload(deploymentPayload).report();
-
-        beacon = report.beacon;
+        beacon = ArbitrumSparkBeaconPayload(deploymentPayload).report();
 
         vm.label(deploymentPayload,             "deploymentPayload");
         vm.label(beacon,                        "beacon");

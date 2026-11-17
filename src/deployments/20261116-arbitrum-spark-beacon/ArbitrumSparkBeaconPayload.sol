@@ -31,11 +31,7 @@ contract ArbitrumSparkBeaconPayload {
         address beacon;
     }
 
-    Report internal _report;
-
-    function report() external view returns (Report memory) {
-        return _report;
-    }
+    Report public report;
 
     /**********************************************************************************************/
     /*** Constructor                                                                            ***/
@@ -46,7 +42,7 @@ contract ArbitrumSparkBeaconPayload {
 
         // Step 1: Deploy Beacon with the spell as temporary owner
 
-        _report.beacon = address(new Beacon({
+        report.beacon = address(new Beacon({
             admin : address(this)
         }));
 
@@ -64,13 +60,13 @@ contract ArbitrumSparkBeaconPayload {
     /**********************************************************************************************/
 
     function _configure() internal {
-        BeaconConfig.setAaveIntegration(_report.beacon,          Arbitrum.AAVE_FACET);
-        BeaconConfig.setCCTPIntegration(_report.beacon,          Arbitrum.CCTP_FACET);
-        BeaconConfig.setERC4626Integration(_report.beacon,       Arbitrum.ERC4626_FACET);
-        BeaconConfig.setLayerZeroIntegration(_report.beacon,     Arbitrum.LAYER_ZERO_FACET);
-        BeaconConfig.setSparkVaultIntegration(_report.beacon,    Arbitrum.SPARK_VAULT_FACET);
-        BeaconConfig.setTransferAssetIntegration(_report.beacon, Arbitrum.TRANSFER_ASSET_FACET);
-        BeaconConfig.setUniswapV4Integration(_report.beacon,     Arbitrum.UNISWAP_V4_FACET);
+        BeaconConfig.setAaveIntegration(report.beacon,          Arbitrum.AAVE_FACET);
+        BeaconConfig.setCCTPIntegration(report.beacon,          Arbitrum.CCTP_FACET);
+        BeaconConfig.setERC4626Integration(report.beacon,       Arbitrum.ERC4626_FACET);
+        BeaconConfig.setLayerZeroIntegration(report.beacon,     Arbitrum.LAYER_ZERO_FACET);
+        BeaconConfig.setSparkVaultIntegration(report.beacon,    Arbitrum.SPARK_VAULT_FACET);
+        BeaconConfig.setTransferAssetIntegration(report.beacon, Arbitrum.TRANSFER_ASSET_FACET);
+        BeaconConfig.setUniswapV4Integration(report.beacon,     Arbitrum.UNISWAP_V4_FACET);
     }
 
     /**********************************************************************************************/
@@ -78,7 +74,7 @@ contract ArbitrumSparkBeaconPayload {
     /**********************************************************************************************/
 
     function _handoff() internal {
-        Beacon beacon = Beacon(_report.beacon);
+        Beacon beacon = Beacon(report.beacon);
 
         beacon.grantRole(DEFAULT_ADMIN_ROLE,  Arbitrum.SPARK_EXECUTOR);
         beacon.revokeRole(DEFAULT_ADMIN_ROLE, address(this));
