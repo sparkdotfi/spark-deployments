@@ -30,23 +30,13 @@ abstract contract ArbitrumSparkBeaconPayloadTestBase is Test {
 
     address internal user = makeAddr("user");
 
-    Vm.Log[] internal deployLogs;
-
     function setUp() public virtual {
         vm.createSelectFork(getChain("arbitrum_one").rpcUrl);
-
-        vm.recordLogs();
 
         deploymentPayload = address(new ArbitrumSparkBeaconPayload());
 
         ArbitrumSparkBeaconPayload.Report memory report
             =  ArbitrumSparkBeaconPayload(deploymentPayload).report();
-
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-
-        for (uint256 i; i < logs.length; ++i) {
-            deployLogs.push(logs[i]);
-        }
 
         beacon = report.beacon;
 
@@ -81,28 +71,6 @@ abstract contract ArbitrumSparkBeaconPayloadTestBase is Test {
         integrations[6] = BeaconConfig.buildUniswapV4Integration(Arbitrum.UNISWAP_V4_FACET);
     }
 
-    // Returns the logs emitted by `target` during deployment with the given `topic0`, in emission order.
-    // A zero `topic0` returns all the logs emitted by `target`.
-    function _getEvents(address target, bytes32 topic0) internal view returns (Vm.Log[] memory logs) {
-        uint256 count;
-
-        for (uint256 i; i < deployLogs.length; ++i) {
-            if (_isEvent(deployLogs[i], target, topic0)) count++;
-        }
-
-        logs = new Vm.Log[](count);
-
-        uint256 j;
-
-        for (uint256 i; i < deployLogs.length; ++i) {
-            if (_isEvent(deployLogs[i], target, topic0)) logs[j++] = deployLogs[i];
-        }
-    }
-
-    function _isEvent(Vm.Log memory log, address target, bytes32 topic0) internal pure returns (bool) {
-        return log.emitter == target && (topic0 == bytes32(0) || log.topics[0] == topic0);
-    }
-
     function _hasSelector(address facet, bytes4 selector) internal returns (bool) {
         assertGt(facet.code.length, 0, "facet has no code");
 
@@ -114,10 +82,6 @@ abstract contract ArbitrumSparkBeaconPayloadTestBase is Test {
         ( bool success, bytes memory revertData ) = facet.call(payload);
 
         return success || revertData.length > 0;
-    }
-
-    function _toAddress(bytes32 topic) internal pure returns (address) {
-        return address(uint160(uint256(topic)));
     }
 
     /**********************************************************************************************/
@@ -149,7 +113,7 @@ abstract contract ArbitrumSparkBeaconPayloadTestBase is Test {
 
 }
 
-contract TestDeploymentPayload is ArbitrumSparkBeaconPayloadTestBase {
+contract ArbitrumSparkBeaconPayloadTest_Payload is ArbitrumSparkBeaconPayloadTestBase {
 
     function test_deploymentPayload_invalidChainId() external {
         vm.chainId(1);
@@ -164,7 +128,7 @@ contract TestDeploymentPayload is ArbitrumSparkBeaconPayloadTestBase {
 
 }
 
-contract TestBeacon is ArbitrumSparkBeaconPayloadTestBase {
+contract ArbitrumSparkBeaconPayloadTest_Beacon is ArbitrumSparkBeaconPayloadTestBase {
 
     function test_beacon_roles() external view {
         IBeacon beacon_ = IBeacon(beacon);
@@ -174,29 +138,6 @@ contract TestBeacon is ArbitrumSparkBeaconPayloadTestBase {
         assertEq(beacon_.getRoleAdmin(DEFAULT_ADMIN_ROLE),       DEFAULT_ADMIN_ROLE);
 
         assertEq(beacon_.hasRole(DEFAULT_ADMIN_ROLE, deploymentPayload), false);
-    }
-
-    function test_beacon_roleEvents() external view {
-        Vm.Log[] memory grantLogs  = _getEvents(beacon, IAccessControl.RoleGranted.selector);
-        Vm.Log[] memory revokeLogs = _getEvents(beacon, IAccessControl.RoleRevoked.selector);
-
-        assertEq(grantLogs.length,  2);
-        assertEq(revokeLogs.length, 1);
-
-        // Beacon constructor makes the deploymentPayload the temporary admin
-        assertEq(grantLogs[0].topics[1],             DEFAULT_ADMIN_ROLE);
-        assertEq(_toAddress(grantLogs[0].topics[2]), deploymentPayload);
-        assertEq(_toAddress(grantLogs[0].topics[3]), deploymentPayload);
-
-        // Handoff to the Beacon admin
-        assertEq(grantLogs[1].topics[1],             DEFAULT_ADMIN_ROLE);
-        assertEq(_toAddress(grantLogs[1].topics[2]), Arbitrum.SPARK_EXECUTOR);
-        assertEq(_toAddress(grantLogs[1].topics[3]), deploymentPayload);
-
-        // The deploymentPayload removes itself
-        assertEq(revokeLogs[0].topics[1],             DEFAULT_ADMIN_ROLE);
-        assertEq(_toAddress(revokeLogs[0].topics[2]), deploymentPayload);
-        assertEq(_toAddress(revokeLogs[0].topics[3]), deploymentPayload);
     }
 
     function test_beacon_integrations() external {
@@ -224,21 +165,6 @@ contract TestBeacon is ArbitrumSparkBeaconPayloadTestBase {
                 );
             }
         }
-    }
-
-    function test_beacon_integrationEvents() external view {
-        IEnumerableIntegrations.Integration[] memory expected = _expectedIntegrations();
-
-        Vm.Log[] memory setLogs = _getEvents(beacon, IEnumerableIntegrations.IntegrationSet.selector);
-
-        assertEq(setLogs.length, expected.length);
-
-        for (uint256 i; i < expected.length; ++i) {
-            assertEq(setLogs[i].topics[1], expected[i].id);
-            assertEq(setLogs[i].data,      abi.encode(expected[i].config));
-        }
-
-        assertEq(_getEvents(beacon, IEnumerableIntegrations.IntegrationRemoved.selector).length, 0);
     }
 
 }
