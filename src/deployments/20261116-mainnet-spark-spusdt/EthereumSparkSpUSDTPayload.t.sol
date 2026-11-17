@@ -48,13 +48,6 @@ interface IAdministeredAgentLike {
 
 }
 
-// Using this interface to decode the Report struct from the deploymentPayload to avoid stack too deep.
-interface IEthereumSparkSpUSDTPayloadLike {
-
-    function report() external view returns (EthereumSparkSpUSDTPayload.Report memory);
-
-}
-
 interface IERC20Like {
 
     function allowance(address owner, address spender) external view returns (uint256);
@@ -132,7 +125,7 @@ abstract contract EthereumSparkSpUSDTPayloadTestBase is Test {
 
         deploymentPayload = address(new EthereumSparkSpUSDTPayload());
 
-        EthereumSparkSpUSDTPayload.Report memory report = IEthereumSparkSpUSDTPayloadLike(deploymentPayload).report();
+        EthereumSparkSpUSDTPayload.Report memory report = EthereumSparkSpUSDTPayload(deploymentPayload).report();
 
         plannerAgent     = report.plannerAgent;
         sparkVaultsAgent = report.sparkVaultsAgent;

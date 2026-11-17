@@ -37,7 +37,13 @@ interface IAdministeredAgentFactory {
 
 }
 
-// TODO : Natspec
+/**
+ * @title  EthereumSparkSpUSDTPayload
+ * @notice One-shot deployment payload for Ethereum mainnet. In its constructor it deploys the
+ *         planner, Spark Vaults and SLL AdministeredAgents, the SLL PAU and the spUSDT PAU,
+ *         configures their roles, facets and rate limits, then hands all admin rights to the
+ *         Spark Proxy and revokes its own.
+ */
 contract EthereumSparkSpUSDTPayload {
 
     /**********************************************************************************************/
@@ -87,7 +93,7 @@ contract EthereumSparkSpUSDTPayload {
         address spUSDTPAURateLimits;
     }
 
-    Report public report;
+    Report internal _report;
 
     /**********************************************************************************************/
     /*** Constructor                                                                            ***/
@@ -100,15 +106,15 @@ contract EthereumSparkSpUSDTPayload {
 
         IAdministeredAgentFactory administeredAgentFactory = IAdministeredAgentFactory(Ethereum.SPARK_ADMINISTERED_AGENT_FACTORY);
 
-        report.plannerAgent = administeredAgentFactory.deploy(
+        _report.plannerAgent = administeredAgentFactory.deploy(
             address(this),
             SPARK_PLANNER_ADMINISTERED_AGENT_SALT
         );
-        report.sparkVaultsAgent = administeredAgentFactory.deploy(
+        _report.sparkVaultsAgent = administeredAgentFactory.deploy(
             address(this),
             SPARK_VAULTS_ADMINISTERED_AGENT_SALT
         );
-        report.sllAgent = administeredAgentFactory.deploy(
+        _report.sllAgent = administeredAgentFactory.deploy(
             address(this),
             SPARK_SLL_ADMINISTERED_AGENT_SALT
         );
@@ -117,27 +123,27 @@ contract EthereumSparkSpUSDTPayload {
 
         IPAUFactory pauFactory = IPAUFactory(Ethereum.SPARK_PAU_FACTORY);
 
-        report.sllPAUAccessControls = pauFactory.deployAccessControls(
+        _report.sllPAUAccessControls = pauFactory.deployAccessControls(
             address(this),
             SPARK_SLL_PAU_ACCESS_CONTROLS_SALT
         );
-        report.sllPAURateLimits = pauFactory.deployRateLimits(
+        _report.sllPAURateLimits = pauFactory.deployRateLimits(
             address(this),
             SPARK_SLL_PAU_RATE_LIMITS_SALT
         );
-        report.sllPAUController = pauFactory.deployController(
-            report.sllPAUAccessControls,
+        _report.sllPAUController = pauFactory.deployController(
+            _report.sllPAUAccessControls,
             Ethereum.ALM_PROXY,
-            report.sllPAURateLimits,
+            _report.sllPAURateLimits,
             SPARK_SLL_PAU_CONTROLLER_SALT
         );
 
         // Step 3: Deploy spUSDT PAU
 
-        report.spUSDTPAUController     = pauFactory.deployPAU(address(this), SPARK_SPUSDT_PAU_SALT);
-        report.spUSDTPAUAccessControls = IController(report.spUSDTPAUController).accessControls();
-        report.spUSDTPAUALMProxy       = IController(report.spUSDTPAUController).proxy();
-        report.spUSDTPAURateLimits     = IController(report.spUSDTPAUController).rateLimits();
+        _report.spUSDTPAUController     = pauFactory.deployPAU(address(this), SPARK_SPUSDT_PAU_SALT);
+        _report.spUSDTPAUAccessControls = IController(_report.spUSDTPAUController).accessControls();
+        _report.spUSDTPAUALMProxy       = IController(_report.spUSDTPAUController).proxy();
+        _report.spUSDTPAURateLimits     = IController(_report.spUSDTPAUController).rateLimits();
 
         // Step 2: Configure the AdministeredAgents
 
@@ -152,12 +158,16 @@ contract EthereumSparkSpUSDTPayload {
 
         _handoffAdministeredAgents();
 
-        _handoff(report.sllPAUAccessControls, Ethereum.SPARK_PROXY);
-        _handoff(report.sllPAURateLimits,     Ethereum.SPARK_PROXY);
+        _handoff(_report.sllPAUAccessControls, Ethereum.SPARK_PROXY);
+        _handoff(_report.sllPAURateLimits,     Ethereum.SPARK_PROXY);
 
-        _handoff(report.spUSDTPAUAccessControls, Ethereum.SPARK_PROXY);
-        _handoff(report.spUSDTPAUALMProxy,       Ethereum.SPARK_PROXY);
-        _handoff(report.spUSDTPAURateLimits,     Ethereum.SPARK_PROXY);
+        _handoff(_report.spUSDTPAUAccessControls, Ethereum.SPARK_PROXY);
+        _handoff(_report.spUSDTPAUALMProxy,       Ethereum.SPARK_PROXY);
+        _handoff(_report.spUSDTPAURateLimits,     Ethereum.SPARK_PROXY);
+    }
+
+    function report() public view returns (Report memory) {
+        return _report;
     }
 
     /**********************************************************************************************/
@@ -165,9 +175,9 @@ contract EthereumSparkSpUSDTPayload {
     /**********************************************************************************************/
 
     function _configureAdministeredAgents() internal {
-        IAdministeredAgent plannerAgent     = IAdministeredAgent(report.plannerAgent);
-        IAdministeredAgent sparkVaultsAgent = IAdministeredAgent(report.sparkVaultsAgent);
-        IAdministeredAgent sllAgent         = IAdministeredAgent(report.sllAgent);
+        IAdministeredAgent plannerAgent     = IAdministeredAgent(_report.plannerAgent);
+        IAdministeredAgent sparkVaultsAgent = IAdministeredAgent(_report.sparkVaultsAgent);
+        IAdministeredAgent sllAgent         = IAdministeredAgent(_report.sllAgent);
 
         plannerAgent.addAdmin(Ethereum.SPARK_PROXY);
         plannerAgent.addActor(SPARK_PLANNER_HOT_WALLET);
@@ -175,40 +185,40 @@ contract EthereumSparkSpUSDTPayload {
         plannerAgent.addGrantor(SPARK_MEDIUM_THRESHOLD_MULTISIG);
 
         sparkVaultsAgent.addAdmin(Ethereum.SPARK_PROXY);
-        sparkVaultsAgent.addActor(report.plannerAgent);
+        sparkVaultsAgent.addActor(_report.plannerAgent);
         sparkVaultsAgent.addRevoker(SPARK_LOW_THRESHOLD_MULTISIG);
         sparkVaultsAgent.addRevoker(SOTER_LABS_REVOKER_MULTISIG);
         sparkVaultsAgent.addGrantor(SOTER_LABS_GRANTOR_MULTISIG);
 
         // TODO: Confirm the SLL AdministeredAgent configuration.
         sllAgent.addAdmin(Ethereum.SPARK_PROXY);
-        sllAgent.addActor(report.plannerAgent);
+        sllAgent.addActor(_report.plannerAgent);
         sllAgent.addRevoker(SPARK_LOW_THRESHOLD_MULTISIG);
         sllAgent.addRevoker(SOTER_LABS_REVOKER_MULTISIG);
         sllAgent.addGrantor(SOTER_LABS_GRANTOR_MULTISIG);
     }
 
     function _configureSLLPAU() internal {
-        IAccessControls accessControls = IAccessControls(report.sllPAUAccessControls);
-        IRateLimits     rateLimits     = IRateLimits(report.sllPAURateLimits);
+        IAccessControls accessControls = IAccessControls(_report.sllPAUAccessControls);
+        IRateLimits     rateLimits     = IRateLimits(_report.sllPAURateLimits);
 
         // Roles configuration
 
-        rateLimits.grantRole(rateLimits.CONTROLLER(), report.sllPAUController);
-        accessControls.grantRole(ALLOCATOR_ROLE,      report.sllAgent);
+        rateLimits.grantRole(rateLimits.CONTROLLER(), _report.sllPAUController);
+        accessControls.grantRole(ALLOCATOR_ROLE,      _report.sllAgent);
     }
 
     function _configureSpUSDTPAU() internal {
-        IAccessControls accessControls = IAccessControls(report.spUSDTPAUAccessControls);
-        IALMProxy       almProxy       = IALMProxy(report.spUSDTPAUALMProxy);
-        IController     controller     = IController(report.spUSDTPAUController);
-        IRateLimits     rateLimits     = IRateLimits(report.spUSDTPAURateLimits);
+        IAccessControls accessControls = IAccessControls(_report.spUSDTPAUAccessControls);
+        IALMProxy       almProxy       = IALMProxy(_report.spUSDTPAUALMProxy);
+        IController     controller     = IController(_report.spUSDTPAUController);
+        IRateLimits     rateLimits     = IRateLimits(_report.spUSDTPAURateLimits);
 
         // Roles configuration
 
-        almProxy.grantRole(almProxy.CONTROLLER(),     report.spUSDTPAUController);
-        rateLimits.grantRole(rateLimits.CONTROLLER(), report.spUSDTPAUController);
-        accessControls.grantRole(ALLOCATOR_ROLE,      report.sparkVaultsAgent);
+        almProxy.grantRole(almProxy.CONTROLLER(),     _report.spUSDTPAUController);
+        rateLimits.grantRole(rateLimits.CONTROLLER(), _report.spUSDTPAUController);
+        accessControls.grantRole(ALLOCATOR_ROLE,      _report.sparkVaultsAgent);
 
         // Onboaring facets
 
@@ -221,34 +231,34 @@ contract EthereumSparkSpUSDTPayload {
 
         // ERC4626 rate limits configuration
         rateLimits.setUnlimitedRateLimitData(
-            IERC4626Controller(report.spUSDTPAUController)
+            IERC4626Controller(_report.spUSDTPAUController)
                 .erc4626_getDepositRateLimitKey(Ethereum.SUSDS, Ethereum.USDS)
         );
         rateLimits.setUnlimitedRateLimitData(
-            IERC4626Controller(report.spUSDTPAUController)
+            IERC4626Controller(_report.spUSDTPAUController)
                 .erc4626_getWithdrawRateLimitKey(Ethereum.SUSDS)
         );
 
         // SparkVault rate limits configuration
 
         rateLimits.setUnlimitedRateLimitData(
-            ISparkVaultController(report.spUSDTPAUController)
+            ISparkVaultController(_report.spUSDTPAUController)
                 .sparkVault_getTakeRateLimitKey(Ethereum.SPARK_VAULT_V2_SPUSDT)
         );
 
         // TransferAsset rate limits configuration
 
         rateLimits.setUnlimitedRateLimitData(
-            ITransferAssetController(report.spUSDTPAUController)
+            ITransferAssetController(_report.spUSDTPAUController)
                 .transferAsset_getTransferRateLimitKey(Ethereum.USDT, Ethereum.SPARK_VAULT_V2_SPUSDT)
         );
 
     }
 
     function _handoffAdministeredAgents() internal {
-        IAdministeredAgent plannerAgent     = IAdministeredAgent(report.plannerAgent);
-        IAdministeredAgent sparkVaultsAgent = IAdministeredAgent(report.sparkVaultsAgent);
-        IAdministeredAgent sllAgent         = IAdministeredAgent(report.sllAgent);
+        IAdministeredAgent plannerAgent     = IAdministeredAgent(_report.plannerAgent);
+        IAdministeredAgent sparkVaultsAgent = IAdministeredAgent(_report.sparkVaultsAgent);
+        IAdministeredAgent sllAgent         = IAdministeredAgent(_report.sllAgent);
 
         plannerAgent.removeAdmin(address(this));
 
