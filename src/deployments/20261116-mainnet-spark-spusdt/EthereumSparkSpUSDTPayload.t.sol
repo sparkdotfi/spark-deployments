@@ -450,6 +450,10 @@ contract EthereumSparkSpUSDTPayloadTest_SpUSDTPAU is EthereumSparkSpUSDTPayloadT
         );
     }
 
+    function test_spUSDTPAU_erc4626_maxExchangeRate() external view {
+        assertEq(IERC4626Controller(spUSDTPAU_controller).erc4626_getMaxExchangeRate(Ethereum.SUSDS), 1e37);
+    }
+
 }
 
 contract EthereumSparkSpUSDTPayloadTest_E2E is EthereumSparkSpUSDTPayloadTestBase {
@@ -488,15 +492,6 @@ contract EthereumSparkSpUSDTPayloadTest_E2E is EthereumSparkSpUSDTPayloadTestBas
 
         bytes32 depositKey  = IERC4626Controller(spUSDTPAU_controller).erc4626_getDepositRateLimitKey(Ethereum.SUSDS, Ethereum.USDS);
         bytes32 withdrawKey = IERC4626Controller(spUSDTPAU_controller).erc4626_getWithdrawRateLimitKey(Ethereum.SUSDS);
-
-        // The deploymentPayload does not set a max exchange rate
-        vm.startPrank(Ethereum.SPARK_PROXY);
-        IERC4626Controller(spUSDTPAU_controller).erc4626_setMaxExchangeRate(
-            Ethereum.SUSDS,
-            susds.convertToShares(1e18),
-            1.2e18
-        );
-        vm.stopPrank();
 
         deal(Ethereum.USDS, spUSDTPAU_almProxy, 1_000_000e18);
 

@@ -226,6 +226,9 @@ contract EthereumSparkSpUSDTPayload {
         rateLimits.setUnlimitedRateLimitData(controller.erc4626_getDepositRateLimitKey(Ethereum.SUSDS, Ethereum.USDS));
         rateLimits.setUnlimitedRateLimitData(controller.erc4626_getWithdrawRateLimitKey(Ethereum.SUSDS));
 
+        // Set max exchange rate
+        controller.erc4626_setMaxExchangeRate(Ethereum.SUSDS, 1e18, 1e19);  // TODO: set correct values
+
         // SparkVault rate limits configuration
 
         rateLimits.setUnlimitedRateLimitData(controller.sparkVault_getTakeRateLimitKey(Ethereum.SPARK_VAULT_V2_SPUSDT));
