@@ -60,7 +60,7 @@ contract EthereumSparkSpUSDTPayload {
     bytes32 internal constant ALLOCATOR_ROLE     = keccak256("ALLOCATOR_ROLE");
 
     bytes32 internal constant SPARK_PLANNER_ADMINISTERED_AGENT_SALT = "SPARK_PLANNER_ADMINISTERED_AGENT";
-    bytes32 internal constant SPARK_ADMINISTERED_AGENT_SALT         = "SPARK_VAULTS_ADMINISTERED_AGENT";
+    bytes32 internal constant SPARK_ADMINISTERED_AGENT_SALT         = "SPARK_ADMINISTERED_AGENT";
     bytes32 internal constant SPARK_SLL_ADMINISTERED_AGENT_SALT     = "SPARK_SLL_ADMINISTERED_AGENT";
 
     // TODO: Replace with the final addresses.
