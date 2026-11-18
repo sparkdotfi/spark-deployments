@@ -38,12 +38,14 @@ interface IAdministeredAgentFactory {
 
 }
 
+interface ISPUSDTPAUController is IController, ISparkVaultController, ITransferAssetController, ILayerZeroController {}
+
 /**
  * @title  ArbitrumSparkSpUSDTPayload
  * @notice One-shot deployment payload for Arbitrum. In its constructor it deploys the planner and
- *         Spark Vaults AdministeredAgents and the spUSDT PAU, configures their roles, facets,
- *         rate limits and the LayerZero recipient on Ethereum, then hands all admin rights to the
- *         Spark Executor and revokes its own.
+ *         Spark AdministeredAgents and the spUSDT PAU, configures their roles, facets, rate limits
+ *         and the LayerZero recipient on Ethereum, then hands all admin rights to the Spark
+ *         Executor and revokes its own.
  */
 contract ArbitrumSparkSpUSDTPayload {
 
@@ -59,9 +61,10 @@ contract ArbitrumSparkSpUSDTPayload {
     bytes32 internal constant ALLOCATOR_ROLE     = keccak256("ALLOCATOR_ROLE");
 
     bytes32 internal constant SPARK_PLANNER_ADMINISTERED_AGENT_SALT = "SPARK_PLANNER_ADMINISTERED_AGENT";
-    bytes32 internal constant SPARK_VAULTS_ADMINISTERED_AGENT_SALT  = "SPARK_VAULTS_ADMINISTERED_AGENT";
+    bytes32 internal constant SPARK_ADMINISTERED_AGENT_SALT         = "SPARK_ADMINISTERED_AGENT";
 
     // TODO: Replace with the final addresses.
+
     address internal constant SPARK_PLANNER_HOT_WALLET        = address(1);
     address internal constant SPARK_LOW_THRESHOLD_MULTISIG    = address(2);
     address internal constant SPARK_MEDIUM_THRESHOLD_MULTISIG = address(3);
@@ -69,9 +72,11 @@ contract ArbitrumSparkSpUSDTPayload {
     address internal constant SOTER_LABS_GRANTOR_MULTISIG     = address(5);
 
     // spUSDT PAU Configuration
+
     bytes32 internal constant SPARK_SPUSDT_PAU_SALT = "SPARK_SPUSDT_PAU";
 
     // LayerZero configuration
+
     uint32 internal constant LZ_ETHEREUM_EID = 30101;
 
     bytes32 internal constant PEER = bytes32(uint256(uint160(Ethereum.USDT_OFT)));
@@ -84,11 +89,11 @@ contract ArbitrumSparkSpUSDTPayload {
 
     struct Report {
         address plannerAgent;
-        address sparkVaultsAgent;
-        address spUSDTPAUController;
-        address spUSDTPAUAccessControls;
-        address spUSDTPAUALMProxy;
-        address spUSDTPAURateLimits;
+        address sparkAgent;
+        address spUSDTPAU_controller;
+        address spUSDTPAU_accessControls;
+        address spUSDTPAU_almProxy;
+        address spUSDTPAU_rateLimits;
     }
 
     Report internal _report;
@@ -98,29 +103,23 @@ contract ArbitrumSparkSpUSDTPayload {
     /**********************************************************************************************/
 
     constructor() {
-        require(block.chainid == ARBITRUM, "SparkEthereumDeployAdministeredAgents/invalid-chain-id");
+        require(block.chainid == ARBITRUM, "ArbitrumSparkSpUSDTPayload/invalid-chain-id");
 
         // Step 1: Deploy the two AdministeredAgents with the payload as temporary admin
 
         IAdministeredAgentFactory administeredAgentFactory = IAdministeredAgentFactory(Arbitrum.SPARK_ADMINISTERED_AGENT_FACTORY);
 
-        _report.plannerAgent = administeredAgentFactory.deploy(
-            address(this),
-            SPARK_PLANNER_ADMINISTERED_AGENT_SALT
-        );
-        _report.sparkVaultsAgent = administeredAgentFactory.deploy(
-            address(this),
-            SPARK_VAULTS_ADMINISTERED_AGENT_SALT
-        );
+        _report.plannerAgent = administeredAgentFactory.deploy(address(this), SPARK_PLANNER_ADMINISTERED_AGENT_SALT);
+        _report.sparkAgent   = administeredAgentFactory.deploy(address(this), SPARK_ADMINISTERED_AGENT_SALT);
 
         // Step 2: Deploy spUSDT PAU
 
         IPAUFactory pauFactory = IPAUFactory(Arbitrum.SPARK_PAU_FACTORY);
 
-        _report.spUSDTPAUController     = pauFactory.deployPAU(address(this), SPARK_SPUSDT_PAU_SALT);
-        _report.spUSDTPAUAccessControls = IController(_report.spUSDTPAUController).accessControls();
-        _report.spUSDTPAUALMProxy       = IController(_report.spUSDTPAUController).proxy();
-        _report.spUSDTPAURateLimits     = IController(_report.spUSDTPAUController).rateLimits();
+        _report.spUSDTPAU_controller     = pauFactory.deployPAU(address(this), SPARK_SPUSDT_PAU_SALT);
+        _report.spUSDTPAU_accessControls = IController(_report.spUSDTPAU_controller).accessControls();
+        _report.spUSDTPAU_almProxy       = IController(_report.spUSDTPAU_controller).proxy();
+        _report.spUSDTPAU_rateLimits     = IController(_report.spUSDTPAU_controller).rateLimits();
 
         // Step 2: Configure the AdministeredAgents
 
@@ -134,9 +133,9 @@ contract ArbitrumSparkSpUSDTPayload {
 
         _handoffAdministeredAgents();
 
-        _handoff(_report.spUSDTPAUAccessControls, Arbitrum.SPARK_EXECUTOR);
-        _handoff(_report.spUSDTPAUALMProxy,       Arbitrum.SPARK_EXECUTOR);
-        _handoff(_report.spUSDTPAURateLimits,     Arbitrum.SPARK_EXECUTOR);
+        _handoff(_report.spUSDTPAU_accessControls, Arbitrum.SPARK_EXECUTOR);
+        _handoff(_report.spUSDTPAU_almProxy,       Arbitrum.SPARK_EXECUTOR);
+        _handoff(_report.spUSDTPAU_rateLimits,     Arbitrum.SPARK_EXECUTOR);
     }
 
     function report() public view returns (Report memory) {
@@ -149,7 +148,7 @@ contract ArbitrumSparkSpUSDTPayload {
 
     function _configureAdministeredAgents() internal {
         IAdministeredAgent plannerAgent     = IAdministeredAgent(_report.plannerAgent);
-        IAdministeredAgent sparkVaultsAgent = IAdministeredAgent(_report.sparkVaultsAgent);
+        IAdministeredAgent sparkAgent = IAdministeredAgent(_report.sparkAgent);
 
         // TODO: change this accordingly.
         plannerAgent.addAdmin(Arbitrum.SPARK_EXECUTOR);
@@ -157,24 +156,24 @@ contract ArbitrumSparkSpUSDTPayload {
         plannerAgent.addRevoker(SPARK_LOW_THRESHOLD_MULTISIG);
         plannerAgent.addGrantor(SPARK_MEDIUM_THRESHOLD_MULTISIG);
 
-        sparkVaultsAgent.addAdmin(Arbitrum.SPARK_EXECUTOR);
-        sparkVaultsAgent.addActor(_report.plannerAgent);
-        sparkVaultsAgent.addRevoker(SPARK_LOW_THRESHOLD_MULTISIG);
-        sparkVaultsAgent.addRevoker(SOTER_LABS_REVOKER_MULTISIG);
-        sparkVaultsAgent.addGrantor(SOTER_LABS_GRANTOR_MULTISIG);
+        sparkAgent.addAdmin(Arbitrum.SPARK_EXECUTOR);
+        sparkAgent.addActor(_report.plannerAgent);
+        sparkAgent.addRevoker(SPARK_LOW_THRESHOLD_MULTISIG);
+        sparkAgent.addRevoker(SOTER_LABS_REVOKER_MULTISIG);
+        sparkAgent.addGrantor(SOTER_LABS_GRANTOR_MULTISIG);
     }
 
     function _configureSpUSDTPAU() internal {
-        IAccessControls accessControls = IAccessControls(_report.spUSDTPAUAccessControls);
-        IALMProxy       almProxy       = IALMProxy(_report.spUSDTPAUALMProxy);
-        IController     controller     = IController(_report.spUSDTPAUController);
-        IRateLimits     rateLimits     = IRateLimits(_report.spUSDTPAURateLimits);
+        IAccessControls      accessControls = IAccessControls(_report.spUSDTPAU_accessControls);
+        IALMProxy            almProxy       = IALMProxy(_report.spUSDTPAU_almProxy);
+        ISPUSDTPAUController controller     = ISPUSDTPAUController(_report.spUSDTPAU_controller);
+        IRateLimits          rateLimits     = IRateLimits(_report.spUSDTPAU_rateLimits);
 
         // Roles configuration
 
-        almProxy.grantRole(almProxy.CONTROLLER(),     _report.spUSDTPAUController);
-        rateLimits.grantRole(rateLimits.CONTROLLER(), _report.spUSDTPAUController);
-        accessControls.grantRole(ALLOCATOR_ROLE,      _report.sparkVaultsAgent);
+        almProxy.grantRole(almProxy.CONTROLLER(),     _report.spUSDTPAU_controller);
+        rateLimits.grantRole(rateLimits.CONTROLLER(), _report.spUSDTPAU_controller);
+        accessControls.grantRole(ALLOCATOR_ROLE,      _report.sparkAgent);
 
         // Onboaring facets
 
@@ -191,72 +190,48 @@ contract ArbitrumSparkSpUSDTPayload {
 
         // SparkVault rate limits configuration
 
-        rateLimits.setUnlimitedRateLimitData(
-            ISparkVaultController(_report.spUSDTPAUController)
-                .sparkVault_getTakeRateLimitKey(Arbitrum.SPARK_VAULT_V2_SPUSDT)
-        );
+        rateLimits.setUnlimitedRateLimitData(controller.sparkVault_getTakeRateLimitKey(Arbitrum.SPARK_VAULT_V2_SPUSDT));
 
         // TransferAsset rate limits configuration
 
         rateLimits.setUnlimitedRateLimitData(
-            ITransferAssetController(_report.spUSDTPAUController)
-                .transferAsset_getTransferRateLimitKey(Arbitrum.USDT0, Arbitrum.SPARK_VAULT_V2_SPUSDT)
+            controller.transferAsset_getTransferRateLimitKey(Arbitrum.USDT0, Arbitrum.SPARK_VAULT_V2_SPUSDT)
         );
 
         // LayerZero rate limits configuration
 
         rateLimits.setUnlimitedRateLimitData(
-            ILayerZeroController(_report.spUSDTPAUController)
-                .layerZero_getTransferRateLimitKey(Arbitrum.USDT_OFT, PEER, LZ_ETHEREUM_EID, Arbitrum.USDT0)
+            controller.layerZero_getTransferRateLimitKey(Arbitrum.USDT_OFT, PEER, LZ_ETHEREUM_EID, Arbitrum.USDT0)
         );
 
         // LayerZero set receipient
-        ILayerZeroController(_report.spUSDTPAUController).layerZero_setRecipient(LZ_ETHEREUM_EID, ETHEREUM_SPUSDT_ALM_PROXY);
+        controller.layerZero_setRecipient(LZ_ETHEREUM_EID, ETHEREUM_SPUSDT_ALM_PROXY);
     }
 
     function _handoffAdministeredAgents() internal {
-        IAdministeredAgent plannerAgent     = IAdministeredAgent(_report.plannerAgent);
-        IAdministeredAgent sparkVaultsAgent = IAdministeredAgent(_report.sparkVaultsAgent);
+        IAdministeredAgent plannerAgent = IAdministeredAgent(_report.plannerAgent);
+        IAdministeredAgent sparkAgent   = IAdministeredAgent(_report.sparkAgent);
 
         plannerAgent.removeAdmin(address(this));
 
-        require(
-            plannerAgent.adminCount() == 1,
-            "ArbitrumSparkSpUSDTPayload/planner-agent-admin-count-not-one"
-        );
-        require(
-            plannerAgent.getAdmin(0) == Arbitrum.SPARK_EXECUTOR,
-            "ArbitrumSparkSpUSDTPayload/planner-agent-admin-not-spark-proxy"
-        );
+        require(plannerAgent.adminCount() == 1,                       "planner-agent-admin-count-not-one");
+        require(plannerAgent.getAdmin(0)  == Arbitrum.SPARK_EXECUTOR, "planner-agent-admin-not-spark-proxy");
 
-        sparkVaultsAgent.removeAdmin(address(this));
+        sparkAgent.removeAdmin(address(this));
 
-        require(
-            sparkVaultsAgent.adminCount() == 1,
-            "ArbitrumSparkSpUSDTPayload/spark-vaults-agent-admin-count-not-one"
-        );
-        require(
-            sparkVaultsAgent.getAdmin(0) == Arbitrum.SPARK_EXECUTOR,
-            "ArbitrumSparkSpUSDTPayload/spark-vaults-agent-admin-not-spark-proxy"
-        );
+        require(sparkAgent.adminCount() == 1,                       "spark-agent-admin-count-not-one");
+        require(sparkAgent.getAdmin(0)  == Arbitrum.SPARK_EXECUTOR, "spark-agent-admin-not-spark-proxy");
     }
 
     function _handoff(address target, address admin) internal {
-        IAccessControls(target).grantRole(DEFAULT_ADMIN_ROLE,  admin);
-        IAccessControls(target).revokeRole(DEFAULT_ADMIN_ROLE, address(this));
+        IAccessControls accessControls = IAccessControls(target);
 
-        require(
-            IAccessControls(target).getRoleMemberCount(DEFAULT_ADMIN_ROLE) == 1,
-            "SparkEthereumDeployAdministeredAgents/default-admin-role-incorrect-count"
-        );
-        require(
-            IAccessControls(target).hasRole(DEFAULT_ADMIN_ROLE, admin),
-            "SparkEthereumDeployAdministeredAgents/admin-not-set"
-        );
-        require(
-            !IAccessControls(target).hasRole(DEFAULT_ADMIN_ROLE, address(this)),
-            "SparkEthereumDeployAdministeredAgents/payload-still-admin"
-        );
+        accessControls.grantRole(DEFAULT_ADMIN_ROLE,  admin);
+        accessControls.revokeRole(DEFAULT_ADMIN_ROLE, address(this));
+
+        require(accessControls.getRoleMemberCount(DEFAULT_ADMIN_ROLE) == 1, "default-admin-role-incorrect-count");
+        require(accessControls.hasRole(DEFAULT_ADMIN_ROLE, admin),          "admin-not-set");
+        require(!accessControls.hasRole(DEFAULT_ADMIN_ROLE, address(this)), "payload-still-admin");
     }
 
 }
