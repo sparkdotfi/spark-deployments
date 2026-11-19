@@ -5,7 +5,8 @@ import { Test } from "../../../lib/forge-std/src/Test.sol";
 
 import { IAccessControl } from "../../../lib/diamond-pau/lib/openzeppelin-contracts/contracts/access/IAccessControl.sol";
 
-import { Ethereum } from "../../../lib/spark-address-registry/src/Ethereum.sol";
+import { Ethereum as SkyEthereum } from "../../../lib/sky-pau-registry/src/Ethereum.sol";
+import { Ethereum }                from "../../../lib/spark-address-registry/src/Ethereum.sol";
 
 import { IAccessControls }         from "../../../lib/diamond-pau/src/interfaces/IAccessControls.sol";
 import { IBeacon }                 from "../../../lib/diamond-pau/src/interfaces/IBeacon.sol";
@@ -92,16 +93,20 @@ abstract contract EthereumSparkSpUSDTPayloadTestBase is Test {
     bytes32 internal constant ALLOCATOR_ROLE     = keccak256("ALLOCATOR_ROLE");
     bytes32 internal constant CONTROLLER_ROLE    = keccak256("CONTROLLER");
 
-    address internal constant PAU_BEACON = Ethereum.SPARK_BEACON;
+    // The SLL PAU is deployed from the Sky PAUFactory (Sky Beacon), the spUSDT PAU from the Spark PAUFactory (Spark Beacon).
+    address internal constant SKY_BEACON      = SkyEthereum.BEACON;
+    address internal constant SKY_PAU_FACTORY = SkyEthereum.PAU_FACTORY;
+
+    address internal constant SPARK_BEACON      = Ethereum.SPARK_BEACON;
+    address internal constant SPARK_PAU_FACTORY = Ethereum.SPARK_PAU_FACTORY;
 
     address internal constant SPUSDT = Ethereum.SPARK_VAULT_V2_SPUSDT;
 
-    // TODO: Replace with the final addresses, must match the deploymentPayload.
-    address internal constant SPARK_PLANNER_HOT_WALLET        = address(1);
-    address internal constant SPARK_LOW_THRESHOLD_MULTISIG    = address(2);
-    address internal constant SPARK_MEDIUM_THRESHOLD_MULTISIG = address(3);
-    address internal constant SOTER_LABS_REVOKER_MULTISIG     = address(4);
-    address internal constant SOTER_LABS_GRANTOR_MULTISIG     = address(5);
+    address internal constant SPARK_PLANNER_HOT_WALLET        = Ethereum.PLANNER_WALLET;
+    address internal constant SPARK_LOW_THRESHOLD_MULTISIG    = Ethereum.SPARK_LOW_THRESHOLD_MULTISIG;
+    address internal constant SPARK_MEDIUM_THRESHOLD_MULTISIG = Ethereum.SPARK_MEDIUM_THRESHOLD_MULTISIG;
+    address internal constant SOTER_LABS_REVOKER_MULTISIG     = address(4); // TODO: Replace with the final address
+    address internal constant SOTER_LABS_GRANTOR_MULTISIG     = address(5); // TODO: Replace with the final address
 
     address internal deploymentPayload;
 
@@ -198,17 +203,23 @@ abstract contract EthereumSparkSpUSDTPayloadTestBase is Test {
     /*** Assertion Helpers                                                                      ***/
     /**********************************************************************************************/
 
-    function _assertWiring(address controller, address accessControls, address almProxy, address rateLimits)
+    function _assertWiring(
+        address controller,
+        address accessControls,
+        address almProxy,
+        address rateLimits,
+        address beacon
+    )
         internal view
     {
         assertEq(IController(controller).accessControls(), accessControls);
         assertEq(IController(controller).proxy(),          almProxy);
         assertEq(IController(controller).rateLimits(),     rateLimits);
-        assertEq(IController(controller).beacon(),         PAU_BEACON);
+        assertEq(IController(controller).beacon(),         beacon);
     }
 
     // Asserts the Controller wires exactly `ids`, in order, with the Beacon's config for each.
-    function _assertIntegrations(address controller, bytes32[] memory ids) internal view {
+    function _assertIntegrations(address controller, address beacon, bytes32[] memory ids) internal view {
         IEnumerableIntegrations.Integration[] memory actual = IController(controller).integrations();
 
         assertEq(actual.length, ids.length);
@@ -216,7 +227,7 @@ abstract contract EthereumSparkSpUSDTPayloadTestBase is Test {
         for (uint256 i; i < ids.length; ++i) {
             assertEq(actual[i].id, ids[i]);
 
-            IEnumerableIntegrations.Config memory expected = IBeacon(PAU_BEACON).getConfig(ids[i]);
+            IEnumerableIntegrations.Config memory expected = IBeacon(beacon).getConfig(ids[i]);
 
             assertNotEq(expected.facet, address(0));
 
@@ -295,16 +306,33 @@ contract EthereumSparkSpUSDTPayloadTest_Payload is EthereumSparkSpUSDTPayloadTes
             }
         }
 
-        IPAUFactory factory = IPAUFactory(Ethereum.SPARK_PAU_FACTORY);
+        IPAUFactory skyFactory   = IPAUFactory(SKY_PAU_FACTORY);
+        IPAUFactory sparkFactory = IPAUFactory(SPARK_PAU_FACTORY);
 
-        assertEq(factory.isAccessControls(sllPAU_accessControls), true);
-        assertEq(factory.isController(sllPAU_controller),         true);
-        assertEq(factory.isRateLimits(sllPAU_rateLimits),         true);
+        assertEq(skyFactory.beacon(),   SKY_BEACON);
+        assertEq(sparkFactory.beacon(), SPARK_BEACON);
 
-        assertEq(factory.isAccessControls(spUSDTPAU_accessControls), true);
-        assertEq(factory.isALMProxy(spUSDTPAU_almProxy),             true);
-        assertEq(factory.isController(spUSDTPAU_controller),         true);
-        assertEq(factory.isRateLimits(spUSDTPAU_rateLimits),         true);
+        // SLL PAU comes from the Sky PAUFactory only.
+
+        assertEq(skyFactory.isAccessControls(sllPAU_accessControls), true);
+        assertEq(skyFactory.isController(sllPAU_controller),         true);
+        assertEq(skyFactory.isRateLimits(sllPAU_rateLimits),         true);
+
+        assertEq(sparkFactory.isAccessControls(sllPAU_accessControls), false);
+        assertEq(sparkFactory.isController(sllPAU_controller),         false);
+        assertEq(sparkFactory.isRateLimits(sllPAU_rateLimits),         false);
+
+        // spUSDT PAU comes from the Spark PAUFactory only.
+
+        assertEq(sparkFactory.isAccessControls(spUSDTPAU_accessControls), true);
+        assertEq(sparkFactory.isALMProxy(spUSDTPAU_almProxy),             true);
+        assertEq(sparkFactory.isController(spUSDTPAU_controller),         true);
+        assertEq(sparkFactory.isRateLimits(spUSDTPAU_rateLimits),         true);
+
+        assertEq(skyFactory.isAccessControls(spUSDTPAU_accessControls), false);
+        assertEq(skyFactory.isALMProxy(spUSDTPAU_almProxy),             false);
+        assertEq(skyFactory.isController(spUSDTPAU_controller),         false);
+        assertEq(skyFactory.isRateLimits(spUSDTPAU_rateLimits),         false);
     }
 
     function test_deploymentPayload_holdsNoRoles() external view {
@@ -381,7 +409,7 @@ contract EthereumSparkSpUSDTPayloadTest_AdministeredAgents is EthereumSparkSpUSD
 contract EthereumSparkSpUSDTPayloadTest_SLLPAU is EthereumSparkSpUSDTPayloadTestBase {
 
     function test_sllPAU_wiring() external view {
-        _assertWiring(sllPAU_controller, sllPAU_accessControls, Ethereum.ALM_PROXY, sllPAU_rateLimits);
+        _assertWiring(sllPAU_controller, sllPAU_accessControls, Ethereum.ALM_PROXY, sllPAU_rateLimits, SKY_BEACON);
     }
 
     function test_sllPAU_roles() external view {
@@ -396,7 +424,7 @@ contract EthereumSparkSpUSDTPayloadTest_SLLPAU is EthereumSparkSpUSDTPayloadTest
     }
 
     function test_sllPAU_integrations() external view {
-        _assertIntegrations(sllPAU_controller, new bytes32[](0));
+        _assertIntegrations(sllPAU_controller, SKY_BEACON, new bytes32[](0));
     }
 
 }
@@ -404,7 +432,7 @@ contract EthereumSparkSpUSDTPayloadTest_SLLPAU is EthereumSparkSpUSDTPayloadTest
 contract EthereumSparkSpUSDTPayloadTest_SpUSDTPAU is EthereumSparkSpUSDTPayloadTestBase {
 
     function test_spUSDTPAU_wiring() external view {
-        _assertWiring(spUSDTPAU_controller, spUSDTPAU_accessControls, spUSDTPAU_almProxy, spUSDTPAU_rateLimits);
+        _assertWiring(spUSDTPAU_controller, spUSDTPAU_accessControls, spUSDTPAU_almProxy, spUSDTPAU_rateLimits, SPARK_BEACON);
     }
 
     function test_spUSDTPAU_roles() external view {
@@ -428,7 +456,7 @@ contract EthereumSparkSpUSDTPayloadTest_SpUSDTPAU is EthereumSparkSpUSDTPayloadT
         ids[1] = "SPARK_VAULT_FACET";
         ids[2] = "TRANSFER_ASSET_FACET";
 
-        _assertIntegrations(spUSDTPAU_controller, ids);
+        _assertIntegrations(spUSDTPAU_controller, SPARK_BEACON, ids);
     }
 
     function test_spUSDTPAU_rateLimits() external view {
@@ -451,7 +479,8 @@ contract EthereumSparkSpUSDTPayloadTest_SpUSDTPAU is EthereumSparkSpUSDTPayloadT
     }
 
     function test_spUSDTPAU_erc4626_maxExchangeRate() external view {
-        assertEq(IERC4626Controller(spUSDTPAU_controller).erc4626_getMaxExchangeRate(Ethereum.SUSDS), 1e37);
+        assertEq(IERC4626Controller(spUSDTPAU_controller).erc4626_EXCHANGE_RATE_PRECISION(),          1e36);
+        assertEq(IERC4626Controller(spUSDTPAU_controller).erc4626_getMaxExchangeRate(Ethereum.SUSDS), 1e76);
     }
 
 }
