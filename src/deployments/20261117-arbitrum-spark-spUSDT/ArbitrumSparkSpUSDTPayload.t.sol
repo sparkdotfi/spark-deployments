@@ -101,12 +101,11 @@ abstract contract ArbitrumSparkSpUSDTPayloadTestBase is Test {
 
     bytes32 internal constant PEER = bytes32(uint256(uint160(Ethereum.USDT_OFT)));
 
-    // TODO: Replace with the final addresses, must match the deploymentPayload.
-    address internal constant SPARK_PLANNER_HOT_WALLET        = address(1);
-    address internal constant SPARK_LOW_THRESHOLD_MULTISIG    = address(2);
-    address internal constant SPARK_MEDIUM_THRESHOLD_MULTISIG = address(3);
-    address internal constant SOTER_LABS_REVOKER_MULTISIG     = address(4);
-    address internal constant SOTER_LABS_GRANTOR_MULTISIG     = address(5);
+    address internal constant SPARK_PLANNER_HOT_WALLET        = Arbitrum.PLANNER_WALLET;
+    address internal constant SPARK_LOW_THRESHOLD_MULTISIG    = Arbitrum.SPARK_LOW_THRESHOLD_MULTISIG;
+    address internal constant SPARK_MEDIUM_THRESHOLD_MULTISIG = Arbitrum.SPARK_MEDIUM_THRESHOLD_MULTISIG;
+    address internal constant SOTER_LABS_REVOKER_MULTISIG     = address(4); // TODO: Replace with the final address
+    address internal constant SOTER_LABS_GRANTOR_MULTISIG     = address(5); // TODO: Replace with the final address
 
     bytes32 internal constant ETHEREUM_SPUSDT_ALM_PROXY = bytes32(uint256(uint160(address(6))));
 
