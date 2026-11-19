@@ -63,13 +63,11 @@ contract ArbitrumSparkSpUSDTPayload {
     bytes32 internal constant SPARK_PLANNER_ADMINISTERED_AGENT_SALT = "SPARK_PLANNER_ADMINISTERED_AGENT";
     bytes32 internal constant SPARK_ADMINISTERED_AGENT_SALT         = "SPARK_ADMINISTERED_AGENT";
 
-    // TODO: Replace with the final addresses.
-
-    address internal constant SPARK_PLANNER_HOT_WALLET        = address(1);
-    address internal constant SPARK_LOW_THRESHOLD_MULTISIG    = address(2);
-    address internal constant SPARK_MEDIUM_THRESHOLD_MULTISIG = address(3);
-    address internal constant SOTER_LABS_REVOKER_MULTISIG     = address(4);
-    address internal constant SOTER_LABS_GRANTOR_MULTISIG     = address(5);
+    address internal constant SPARK_PLANNER_HOT_WALLET        = Arbitrum.PLANNER_WALLET;
+    address internal constant SPARK_LOW_THRESHOLD_MULTISIG    = Arbitrum.SPARK_LOW_THRESHOLD_MULTISIG;
+    address internal constant SPARK_MEDIUM_THRESHOLD_MULTISIG = Arbitrum.SPARK_MEDIUM_THRESHOLD_MULTISIG;
+    address internal constant SOTER_LABS_REVOKER_MULTISIG     = address(4); // TODO: Replace with the final address
+    address internal constant SOTER_LABS_GRANTOR_MULTISIG     = address(5); // TODO: Replace with the final address
 
     // spUSDT PAU Configuration
 
@@ -81,7 +79,7 @@ contract ArbitrumSparkSpUSDTPayload {
 
     bytes32 internal constant PEER = bytes32(uint256(uint160(Ethereum.USDT_OFT)));
 
-    bytes32 internal constant ETHEREUM_SPUSDT_ALM_PROXY = bytes32(uint256(uint160(address(6))));
+    bytes32 internal constant ETHEREUM_SPUSDT_ALM_PROXY = bytes32(uint256(uint160(address(6)))); // TODO: Replace with the final address
 
     /**********************************************************************************************/
     /*** Deployed contracts                                                                     ***/
@@ -121,7 +119,7 @@ contract ArbitrumSparkSpUSDTPayload {
         _report.spUSDTPAU_almProxy       = IController(_report.spUSDTPAU_controller).proxy();
         _report.spUSDTPAU_rateLimits     = IController(_report.spUSDTPAU_controller).rateLimits();
 
-        // Step 2: Configure the AdministeredAgents
+        // Step 3: Configure the AdministeredAgents
 
         _configureAdministeredAgents();
 
@@ -215,12 +213,12 @@ contract ArbitrumSparkSpUSDTPayload {
         plannerAgent.removeAdmin(address(this));
 
         require(plannerAgent.adminCount() == 1,                       "planner-agent-admin-count-not-one");
-        require(plannerAgent.getAdmin(0)  == Arbitrum.SPARK_EXECUTOR, "planner-agent-admin-not-spark-proxy");
+        require(plannerAgent.getAdmin(0)  == Arbitrum.SPARK_EXECUTOR, "planner-agent-admin-not-spark-executor");
 
         sparkAgent.removeAdmin(address(this));
 
         require(sparkAgent.adminCount() == 1,                       "spark-agent-admin-count-not-one");
-        require(sparkAgent.getAdmin(0)  == Arbitrum.SPARK_EXECUTOR, "spark-agent-admin-not-spark-proxy");
+        require(sparkAgent.getAdmin(0)  == Arbitrum.SPARK_EXECUTOR, "spark-agent-admin-not-spark-executor");
     }
 
     function _handoff(address target, address admin) internal {

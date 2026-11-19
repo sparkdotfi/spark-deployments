@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.34;
 
-import { Ethereum } from "../../../lib/spark-address-registry/src/Ethereum.sol";
+import { Ethereum as SkyEthereum } from "../../../lib/sky-pau-registry/src/Ethereum.sol";
+import { Ethereum }                from "../../../lib/spark-address-registry/src/Ethereum.sol";
 
 import { IALMProxy }       from "../../../lib/diamond-pau/src/interfaces/IALMProxy.sol";
 import { IPAUFactory }     from "../../../lib/diamond-pau/src/interfaces/IPAUFactory.sol";
@@ -63,12 +64,11 @@ contract EthereumSparkSpUSDTPayload {
     bytes32 internal constant SPARK_ADMINISTERED_AGENT_SALT         = "SPARK_ADMINISTERED_AGENT";
     bytes32 internal constant SPARK_SLL_ADMINISTERED_AGENT_SALT     = "SPARK_SLL_ADMINISTERED_AGENT";
 
-    // TODO: Replace with the final addresses.
-    address internal constant SPARK_PLANNER_HOT_WALLET        = address(1);
-    address internal constant SPARK_LOW_THRESHOLD_MULTISIG    = address(2);
-    address internal constant SPARK_MEDIUM_THRESHOLD_MULTISIG = address(3);
-    address internal constant SOTER_LABS_REVOKER_MULTISIG     = address(4);
-    address internal constant SOTER_LABS_GRANTOR_MULTISIG     = address(5);
+    address internal constant SPARK_PLANNER_HOT_WALLET        = Ethereum.PLANNER_WALLET;
+    address internal constant SPARK_LOW_THRESHOLD_MULTISIG    = Ethereum.SPARK_LOW_THRESHOLD_MULTISIG;
+    address internal constant SPARK_MEDIUM_THRESHOLD_MULTISIG = Ethereum.SPARK_MEDIUM_THRESHOLD_MULTISIG;
+    address internal constant SOTER_LABS_REVOKER_MULTISIG     = address(4); // TODO: Replace with the final address
+    address internal constant SOTER_LABS_GRANTOR_MULTISIG     = address(5); // TODO: Replace with the final address
 
     // SLL PAU Configuration
     bytes32 internal constant SPARK_SLL_PAU_ACCESS_CONTROLS_SALT = "SPARK_SLL_PAU_ACCESS_CONTROLS";
@@ -112,42 +112,44 @@ contract EthereumSparkSpUSDTPayload {
         _report.sparkAgent   = administeredAgentFactory.deploy(address(this), SPARK_ADMINISTERED_AGENT_SALT);
         _report.sllAgent     = administeredAgentFactory.deploy(address(this), SPARK_SLL_ADMINISTERED_AGENT_SALT);
 
-        // Step 2: Deploy SLL PAU
+        // Step 2: Deploy SLL PAU from the Sky PAUFactory, so its Controller is wired to the Sky Beacon
 
-        IPAUFactory pauFactory = IPAUFactory(Ethereum.SPARK_PAU_FACTORY);
+        IPAUFactory skyPAUFactory = IPAUFactory(SkyEthereum.PAU_FACTORY);
 
-        _report.sllPAU_accessControls = pauFactory.deployAccessControls(
+        _report.sllPAU_accessControls = skyPAUFactory.deployAccessControls(
             address(this),
             SPARK_SLL_PAU_ACCESS_CONTROLS_SALT
         );
-        _report.sllPAU_rateLimits = pauFactory.deployRateLimits(
+        _report.sllPAU_rateLimits = skyPAUFactory.deployRateLimits(
             address(this),
             SPARK_SLL_PAU_RATE_LIMITS_SALT
         );
-        _report.sllPAU_controller = pauFactory.deployController(
+        _report.sllPAU_controller = skyPAUFactory.deployController(
             _report.sllPAU_accessControls,
             Ethereum.ALM_PROXY,
             _report.sllPAU_rateLimits,
             SPARK_SLL_PAU_CONTROLLER_SALT
         );
 
-        // Step 3: Deploy spUSDT PAU
+        // Step 3: Deploy spUSDT PAU from the Spark PAUFactory, so its Controller is wired to the Spark Beacon
 
-        _report.spUSDTPAU_controller     = pauFactory.deployPAU(address(this), SPARK_SPUSDT_PAU_SALT);
+        IPAUFactory sparkPAUFactory = IPAUFactory(Ethereum.SPARK_PAU_FACTORY);
+
+        _report.spUSDTPAU_controller     = sparkPAUFactory.deployPAU(address(this), SPARK_SPUSDT_PAU_SALT);
         _report.spUSDTPAU_accessControls = IController(_report.spUSDTPAU_controller).accessControls();
         _report.spUSDTPAU_almProxy       = IController(_report.spUSDTPAU_controller).proxy();
         _report.spUSDTPAU_rateLimits     = IController(_report.spUSDTPAU_controller).rateLimits();
 
-        // Step 2: Configure the AdministeredAgents
+        // Step 4: Configure the AdministeredAgents
 
         _configureAdministeredAgents();
 
-        // Step 4: Configure the SLL and spUSDT PAUs
+        // Step 5: Configure the SLL and spUSDT PAUs
 
         _configureSLLPAU();
         _configureSpUSDTPAU();
 
-        // Step 5: Hand admin rights over to the Spark Proxy and revoke the payload's admin role
+        // Step 6: Hand admin rights over to the Spark Proxy and revoke the payload's admin role
 
         _handoffAdministeredAgents();
 
@@ -183,7 +185,6 @@ contract EthereumSparkSpUSDTPayload {
         sparkAgent.addRevoker(SOTER_LABS_REVOKER_MULTISIG);
         sparkAgent.addGrantor(SOTER_LABS_GRANTOR_MULTISIG);
 
-        // TODO: Confirm the SLL AdministeredAgent configuration.
         sllAgent.addAdmin(Ethereum.SPARK_PROXY);
         sllAgent.addActor(_report.plannerAgent);
         sllAgent.addRevoker(SPARK_LOW_THRESHOLD_MULTISIG);
@@ -227,7 +228,7 @@ contract EthereumSparkSpUSDTPayload {
         rateLimits.setUnlimitedRateLimitData(controller.erc4626_getWithdrawRateLimitKey(Ethereum.SUSDS));
 
         // Set max exchange rate
-        controller.erc4626_setMaxExchangeRate(Ethereum.SUSDS, 1e18, 1e19);  // TODO: set correct values
+        controller.erc4626_setMaxExchangeRate(Ethereum.SUSDS, 1, 1e40);
 
         // SparkVault rate limits configuration
 

@@ -10,3 +10,6 @@
 [submodule "lib/xchain-helpers"]
 	path = lib/xchain-helpers
 	url = https://github.com/sparkdotfi/xchain-helpers
+[submodule "lib/sky-pau-registry"]
+	path = lib/sky-pau-registry
+	url = https://github.com/sky-ecosystem/sky-pau-registry.git
