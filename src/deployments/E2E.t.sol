@@ -7,8 +7,9 @@ import { Bridge }                 from "../../lib/xchain-helpers/src/testing/Bri
 import { Domain, DomainHelpers }  from "../../lib/xchain-helpers/src/testing/Domain.sol";
 import { LZBridgeTesting }        from "../../lib/xchain-helpers/src/testing/bridges/LZBridgeTesting.sol";
 
-import { Arbitrum } from "../../lib/spark-address-registry/src/Arbitrum.sol";
-import { Ethereum } from "../../lib/spark-address-registry/src/Ethereum.sol";
+import { Arbitrum }                from "../../lib/spark-address-registry/src/Arbitrum.sol";
+import { Ethereum }                from "../../lib/spark-address-registry/src/Ethereum.sol";
+import { Ethereum as SkyEthereum } from "../../lib/sky-pau-registry/src/Ethereum.sol";
 
 import { IALMProxy }   from "../../lib/diamond-pau/src/interfaces/IALMProxy.sol";
 import { IController } from "../../lib/diamond-pau/src/interfaces/IController.sol";
@@ -96,8 +97,7 @@ abstract contract E2ETestBase is Test {
     // Aave v3 Core Pool, not in the address registry.
     address internal constant AAVE_CORE_POOL = 0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2;
 
-    // TODO: Replace with the final address, must match the deployment payloads.
-    address internal constant SPARK_PLANNER_HOT_WALLET = address(1);
+    address internal constant SPARK_PLANNER_HOT_WALLET = Ethereum.PLANNER_WALLET;
 
     /**********************************************************************************************/
     /*** Domains and bridges                                                                    ***/
@@ -223,15 +223,19 @@ abstract contract E2ETestBase is Test {
 
         lzBridge = LZBridgeTesting.createLZBridge(arbitrum, mainnet);
 
-        // Step 4: Execute the governance spell
+        // Step 4: Execute the Sky spell
+
+        _skySpell20261203();
+
+        // Step 5: Execute the Spark spell
 
         _sparkSpell20261203();
 
-        // Step 5: Assign ratelimit keys
+        // Step 6: Assign ratelimit keys
 
         _assignRatelimitKeys();
 
-        // Step 6: Labels
+        // Step 7: Labels
 
         vm.label(address(ethPlannerAgent),         "eth.plannerAgent");
         vm.label(address(ethSparkAgent),           "eth.sparkAgent");
@@ -338,6 +342,15 @@ abstract contract E2ETestBase is Test {
         });
     }
 
+    function _skySpell20261203() internal {
+        mainnet.selectFork();
+
+        // Onboard the SwapAssetFacet for SLL PAU
+
+        vm.prank(Ethereum.PAUSE_PROXY);
+        BeaconConfig.setSwapAssetIntegration(SkyEthereum.BEACON, SkyEthereum.SWAP_ASSET_FACET);
+    }
+
     // NOTE: Executes only the subset of upcoming spell that is relevant to the E2E test.
     function _sparkSpell20261203() internal {
         // ETHEREUM
@@ -358,7 +371,7 @@ abstract contract E2ETestBase is Test {
         bytes32[] memory ethSllPAUIntegrationIds = new bytes32[](1);
         ethSllPAUIntegrationIds[0] = "SWAP_ASSET_FACET";
 
-        ethSllPAU_controller.updateIntegrations(ethSllPAUIntegrationIds);
+        ethSllPAU_controller.updateIntegrations(ethSllPAUIntegrationIds); // Consumes from Sky Beacon
 
         // Step 3: SLL PAU SwapAsset complete rate limits
 
