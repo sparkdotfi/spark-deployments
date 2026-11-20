@@ -60,8 +60,8 @@ contract ArbitrumSparkSpUSDTPayload {
     bytes32 internal constant DEFAULT_ADMIN_ROLE = 0x00;
     bytes32 internal constant ALLOCATOR_ROLE     = keccak256("ALLOCATOR_ROLE");
 
-    bytes32 internal constant SPARK_PLANNER_ADMINISTERED_AGENT_SALT = "SPARK_PLANNER_ADMINISTERED_AGENT";
-    bytes32 internal constant SPARK_ADMINISTERED_AGENT_SALT         = "SPARK_ADMINISTERED_AGENT";
+    bytes32 internal constant SPARK_PLANNER_ADMINISTERED_AGENT_SALT = keccak256("spark.arb.plannerAdministeredAgent");
+    bytes32 internal constant SPARK_ADMINISTERED_AGENT_SALT         = keccak256("spark.arb.administeredAgent");
 
     address internal constant SPARK_PLANNER_HOT_WALLET        = Arbitrum.PLANNER_WALLET;
     address internal constant SPARK_LOW_THRESHOLD_MULTISIG    = Arbitrum.SPARK_LOW_THRESHOLD_MULTISIG;
@@ -71,7 +71,7 @@ contract ArbitrumSparkSpUSDTPayload {
 
     // spUSDT PAU Configuration
 
-    bytes32 internal constant SPARK_SPUSDT_PAU_SALT = "SPARK_SPUSDT_PAU";
+    bytes32 internal constant SPARK_SPUSDT_PAU_SALT = keccak256("spark.arb.spUSDTPAU");
 
     // LayerZero configuration
 
@@ -79,7 +79,7 @@ contract ArbitrumSparkSpUSDTPayload {
 
     bytes32 internal constant PEER = bytes32(uint256(uint160(Ethereum.USDT_OFT)));
 
-    bytes32 internal constant ETHEREUM_SPUSDT_ALM_PROXY = bytes32(uint256(uint160(address(6)))); // TODO: Replace with the final address
+    bytes32 internal constant ETHEREUM_SPUSDT_ALM_PROXY = bytes32(uint256(uint160(0xF948e51418772538dd4dC9608eD109D597B87449)));
 
     /**********************************************************************************************/
     /*** Deployed contracts                                                                     ***/

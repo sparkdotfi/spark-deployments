@@ -8,7 +8,7 @@ import { ArbitrumSparkSpUSDTPayload } from "./ArbitrumSparkSpUSDTPayload.sol";
 contract Deploy is DeployBase {
 
     function _deployPayload() internal override returns (address payload) {
-        payload = address(new ArbitrumSparkSpUSDTPayload());
+        payload = address(new ArbitrumSparkSpUSDTPayload{salt: keccak256("spark.arb.spUSDTPAUPayload")}());
     }
 
     function _getOutputPath() internal pure override returns (string memory) {
