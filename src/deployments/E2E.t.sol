@@ -164,10 +164,10 @@ abstract contract E2ETestBase is Test {
     bytes32 internal ethAaveWithdrawKey;
     bytes32 internal ethERC4626DepositKey;
     bytes32 internal ethERC4626WithdrawKey;
-    bytes32 internal ethSwapInitiateUSDTKey;
-    bytes32 internal ethSwapInitiateUSDSKey;
-    bytes32 internal sllSwapCompleteUSDTKey;
-    bytes32 internal sllSwapCompleteUSDSKey;
+    bytes32 internal sllSwapInitiateUSDSKey;
+    bytes32 internal sllSwapInitiateUSDTKey;
+    bytes32 internal ethSwapCompleteUSDTKey;
+    bytes32 internal ethSwapCompleteUSDSKey;
 
     bytes32 internal arbTakeKey;
     bytes32 internal arbTransferKey;
@@ -301,27 +301,27 @@ abstract contract E2ETestBase is Test {
         });
         ethERC4626WithdrawKey = ethSpUSDTPAU_controller.erc4626_getWithdrawRateLimitKey({ token: Ethereum.SUSDS });
 
-        ethSwapInitiateUSDTKey = ethSpUSDTPAU_controller.swapAsset_getInitiateSwapRateLimitKey({
-            assetOut               : Ethereum.USDT,
-            counterpartyProxy      : Ethereum.ALM_PROXY,
-            counterpartyController : address(ethSllPAU_controller),
-            assetIn                : Ethereum.USDS
-        });
-        ethSwapInitiateUSDSKey = ethSpUSDTPAU_controller.swapAsset_getInitiateSwapRateLimitKey({
+        sllSwapInitiateUSDSKey = ethSllPAU_controller.swapAsset_getInitiateSwapRateLimitKey({
             assetOut               : Ethereum.USDS,
-            counterpartyProxy      : Ethereum.ALM_PROXY,
-            counterpartyController : address(ethSllPAU_controller),
+            counterpartyProxy      : ethSpUSDTPAU_almProxy,
+            counterpartyController : address(ethSpUSDTPAU_controller),
             assetIn                : Ethereum.USDT
         });
+        sllSwapInitiateUSDTKey = ethSllPAU_controller.swapAsset_getInitiateSwapRateLimitKey({
+            assetOut               : Ethereum.USDT,
+            counterpartyProxy      : ethSpUSDTPAU_almProxy,
+            counterpartyController : address(ethSpUSDTPAU_controller),
+            assetIn                : Ethereum.USDS
+        });
 
-        sllSwapCompleteUSDTKey = ethSllPAU_controller.swapAsset_getCompleteSwapRateLimitKey({
+        ethSwapCompleteUSDTKey = ethSpUSDTPAU_controller.swapAsset_getCompleteSwapRateLimitKey({
             assetOut          : Ethereum.USDT,
-            counterpartyProxy : ethSpUSDTPAU_almProxy,
+            counterpartyProxy : Ethereum.ALM_PROXY,
             assetIn           : Ethereum.USDS
         });
-        sllSwapCompleteUSDSKey = ethSllPAU_controller.swapAsset_getCompleteSwapRateLimitKey({
+        ethSwapCompleteUSDSKey = ethSpUSDTPAU_controller.swapAsset_getCompleteSwapRateLimitKey({
             assetOut          : Ethereum.USDS,
-            counterpartyProxy : ethSpUSDTPAU_almProxy,
+            counterpartyProxy : Ethereum.ALM_PROXY,
             assetIn           : Ethereum.USDT
         });
 
@@ -373,28 +373,7 @@ abstract contract E2ETestBase is Test {
 
         ethSllPAU_controller.updateIntegrations(ethSllPAUIntegrationIds); // Consumes from Sky Beacon
 
-        // Step 3: SLL PAU SwapAsset complete rate limits
-
-        ethSllPAU_rateLimits.setRateLimitData(
-            ethSllPAU_controller.swapAsset_getCompleteSwapRateLimitKey({
-                assetOut          : Ethereum.USDT,
-                counterpartyProxy : ethSpUSDTPAU_almProxy,
-                assetIn           : Ethereum.USDS
-            }),
-            100_000_000e6,
-            500_000_000e6 / uint256(1 days)
-        );
-        ethSllPAU_rateLimits.setRateLimitData(
-            ethSllPAU_controller.swapAsset_getCompleteSwapRateLimitKey({
-                assetOut          : Ethereum.USDS,
-                counterpartyProxy : ethSpUSDTPAU_almProxy,
-                assetIn           : Ethereum.USDT
-            }),
-            100_000_000e18,
-            500_000_000e18 / uint256(1 days)
-        );
-
-        // Step 4: spUSDT PAU, onboard Aave, LayerZero and SwapAsset
+        // Step 3: spUSDT PAU, onboard Aave, LayerZero and SwapAsset
 
         bytes32[] memory spUSDTIntegrationIds = new bytes32[](3);
         spUSDTIntegrationIds[0] = "AAVE_FACET";
@@ -403,64 +382,15 @@ abstract contract E2ETestBase is Test {
 
         ethSpUSDTPAU_controller.updateIntegrations(spUSDTIntegrationIds);
 
-        // Step 5: spUSDT PAU ratelimits configurations
+        // Step 4: Aave V3 core USDT set max slippage
 
-        // SwapAsset initiate rate limits
-        ethSpUSDTPAU_rateLimits.setRateLimitData(
-            ethSpUSDTPAU_controller.swapAsset_getInitiateSwapRateLimitKey({
-                assetOut               : Ethereum.USDT,
-                counterpartyProxy      : Ethereum.ALM_PROXY,
-                counterpartyController : address(ethSllPAU_controller),
-                assetIn                : Ethereum.USDS
-            }),
-            100_000_000e6,
-            1_000_000_000e6 / uint256(1 days)
-        );
-        ethSpUSDTPAU_rateLimits.setRateLimitData(
-            ethSpUSDTPAU_controller.swapAsset_getInitiateSwapRateLimitKey({
-                assetOut               : Ethereum.USDS,
-                counterpartyProxy      : Ethereum.ALM_PROXY,
-                counterpartyController : address(ethSllPAU_controller),
-                assetIn                : Ethereum.USDT
-            }),
-            100_000_000e18,
-            1_000_000_000e18 / uint256(1 days)
-        );
-
-        // Aave v3 Core USDT rate limits
         ethSpUSDTPAU_controller.aave_setMaxSlippage(Ethereum.ATOKEN_CORE_USDT, 0.99999e18);
 
-        ethSpUSDTPAU_rateLimits.setRateLimitData(
-            ethSpUSDTPAU_controller.aave_getDepositRateLimitKey({
-                aToken          : Ethereum.ATOKEN_CORE_USDT,
-                pool            : AAVE_CORE_POOL,
-                underlyingAsset : Ethereum.USDT
-            }),
-            100_000_000e6,
-            500_000_000e6 / uint256(1 days)
-        );
-        ethSpUSDTPAU_rateLimits.setUnlimitedRateLimitData(
-            ethSpUSDTPAU_controller.aave_getWithdrawRateLimitKey({
-                aToken : Ethereum.ATOKEN_CORE_USDT,
-                pool   : AAVE_CORE_POOL
-            })
-        );
+        // Step 5: Set the LayerZero recipient on Ethereum to the Arbitrum spUSDT ALM Proxy
 
-        // LayerZero USDT to Arbitrum rate limits
         ethSpUSDTPAU_controller.layerZero_setRecipient(
             LZ_ARBITRUM_EID,
             bytes32(uint256(uint160(arbSpUSDTPAU_almProxy)))
-        );
-
-        ethSpUSDTPAU_rateLimits.setRateLimitData(
-            ethSpUSDTPAU_controller.layerZero_getTransferRateLimitKey({
-                oft                   : Ethereum.USDT_OFT,
-                peer                  : bytes32(uint256(uint160(Arbitrum.USDT_OFT))),
-                destinationEndpointId : LZ_ARBITRUM_EID,
-                token                 : Ethereum.USDT
-            }),
-            5_000_000e6,
-            50_000_000e6 / uint256(1 days)
         );
 
         // Step 6: Grant spUSDT TAKER_ROLE to the Ethereum spUSDT ALM Proxy
@@ -477,8 +407,8 @@ abstract contract E2ETestBase is Test {
         arbitrum.selectFork();
         vm.startPrank(Arbitrum.SPARK_EXECUTOR);
 
-        // Step 7: Set the LayerZero recipient on Ethereum to the Ethereum spUSDT ALM Proxy,
-        //         replacing the placeholder set by the deployment payload
+        // Step 7: Set the LayerZero recipient on Arbitrum to the Ethereum spUSDT ALM Proxy,
+        //         replacing the placeholder set by the ArbitrumSparkSpUSDTPayload deployment payload
         //         (TODO: Remove this step once the deployment payload is updated)
 
         arbSpUSDTPAU_controller.layerZero_setRecipient(
@@ -703,13 +633,14 @@ contract E2ETest is E2ETestBase {
         assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy),  1_000_100e6);
         assertEq(aUsdt.balanceOf(ethSpUSDTPAU_almProxy), 1_000_000e6 - 1);  // aToken rounding
 
-        // Step 8: ethSparkAgent (ethPlannerAgent) swaps 1_000_000e6 USDT to USDS using SwapAssetFacet
+        // Step 8: ethSllAgent (ethPlannerAgent) initiates a swap on the SLL PAU of 1_000_000e18 USDS for
+        //         1_000_000e6 USDT, completed by the spUSDT PAU using SwapAssetFacet
 
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapInitiateUSDTKey), 100_000_000e6);
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapInitiateUSDSKey), 100_000_000e18);
+        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDSKey), 100_000_000e18);
+        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDTKey), 100_000_000e6);
 
-        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapCompleteUSDTKey), 100_000_000e6);
-        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapCompleteUSDSKey), 100_000_000e18);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDTKey), 100_000_000e6);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDSKey), 100_000_000e18);
 
         assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 1_000_100e6);
         assertEq(usds.balanceOf(ethSpUSDTPAU_almProxy), 0);
@@ -718,25 +649,25 @@ contract E2ETest is E2ETestBase {
 
         vm.prank(SPARK_PLANNER_HOT_WALLET);
         ethPlannerAgent.call(
-            address(ethSparkAgent),
+            address(ethSllAgent),
             abi.encodeCall(
                 IAdministeredAgentLike.call,
                 (
-                    address(ethSpUSDTPAU_controller),
+                    address(ethSllPAU_controller),
                     abi.encodeCall(
                         ISwapAssetController.swapAsset_initiateSwap,
-                        (address(ethSllPAU_controller), Ethereum.USDT, Ethereum.USDS, 1_000_000e6)
+                        (address(ethSpUSDTPAU_controller), Ethereum.USDS, Ethereum.USDT, 1_000_000e18)
                     )
                 )
             )
         );
 
         // The reverse direction keys increase, already at max so they stay at max.
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapInitiateUSDTKey), 99_000_000e6);
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapInitiateUSDSKey), 100_000_000e18);
+        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDSKey), 99_000_000e18);
+        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDTKey), 100_000_000e6);
 
-        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapCompleteUSDTKey), 100_000_000e6);
-        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapCompleteUSDSKey), 99_000_000e18);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDTKey), 99_000_000e6);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDSKey), 100_000_000e18);
 
         assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 100e6);
         assertEq(usds.balanceOf(ethSpUSDTPAU_almProxy), 1_000_000e18);
@@ -791,8 +722,8 @@ contract E2ETest is E2ETestBase {
 
         // Rate limits fully recharged
         assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethAaveDepositKey),      100_000_000e6);
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapInitiateUSDTKey), 100_000_000e6);
-        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapCompleteUSDSKey),    100_000_000e18);
+        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDSKey),    100_000_000e18);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDTKey), 100_000_000e6);
 
         // Step 11: ethSparkAgent (ethPlannerAgent) withdraws 1_000_000e6 + interest USDT from Aave v3 using AaveFacet
 
@@ -850,40 +781,43 @@ contract E2ETest is E2ETestBase {
         assertEq(usds.balanceOf(ethSpUSDTPAU_almProxy),  1_000_102.185452752247429128e18);
         assertEq(susds.balanceOf(ethSpUSDTPAU_almProxy), 0);
 
-        // Step 13: ethSparkAgent (ethPlannerAgent) swaps 1_000_000e6 USDS + interest to USDT using SwapAssetFacet
+        // Step 13: ethSllAgent (ethPlannerAgent) initiates a swap on the SLL PAU of 1_000_000e6 USDT + interest
+        //          for the USDS + interest, completed by the spUSDT PAU using SwapAssetFacet
 
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapInitiateUSDTKey), 100_000_000e6);
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapInitiateUSDSKey), 100_000_000e18);
+        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDSKey), 100_000_000e18);
+        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDTKey), 100_000_000e6);
 
-        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapCompleteUSDTKey), 100_000_000e6);
-        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapCompleteUSDSKey), 100_000_000e18);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDTKey), 100_000_000e6);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDSKey), 100_000_000e18);
 
         assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 1_000_185.180538e6);
         assertEq(usds.balanceOf(ethSpUSDTPAU_almProxy), 1_000_102.185452752247429128e18);
         assertEq(usdt.balanceOf(Ethereum.ALM_PROXY),    2_000_000e6);
         assertEq(usds.balanceOf(Ethereum.ALM_PROXY),    0);
 
-        // Swapping USDS to USDT requires a multiple of 1e12, the remaining USDS dust stays in the ALMProxy.
+        // The SLL sends USDT, so the spUSDT PAU sends amountOut * 1e12 USDS, the USDS dust below 1e12 stays
+        // in the spUSDT ALMProxy.
         vm.prank(SPARK_PLANNER_HOT_WALLET);
         ethPlannerAgent.call(
-            address(ethSparkAgent),
+            address(ethSllAgent),
             abi.encodeCall(
                 IAdministeredAgentLike.call,
                 (
-                    address(ethSpUSDTPAU_controller),
+                    address(ethSllPAU_controller),
                     abi.encodeCall(
                         ISwapAssetController.swapAsset_initiateSwap,
-                        (address(ethSllPAU_controller), Ethereum.USDS, Ethereum.USDT, 1_000_102.185452e18)
+                        (address(ethSpUSDTPAU_controller), Ethereum.USDT, Ethereum.USDS, 1_000_102.185452e6)
                     )
                 )
             )
         );
 
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapInitiateUSDTKey), 100_000_000e6);
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapInitiateUSDSKey), 98_999_897.814548e18);
+        // The reverse direction keys increase, already at max so they stay at max.
+        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDSKey), 100_000_000e18);
+        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDTKey), 98_999_897.814548e6);
 
-        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapCompleteUSDTKey), 98_999_897.814548e6);
-        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapCompleteUSDSKey), 100_000_000e18);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDTKey), 100_000_000e6);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDSKey), 98_999_897.814548e18);
 
         assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 2_000_287.365990e6);
         assertEq(usds.balanceOf(ethSpUSDTPAU_almProxy), 0.000000752247429128e18);
