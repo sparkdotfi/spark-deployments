@@ -8,7 +8,7 @@ import { EthereumSparkSpUSDTPayload } from "./EthereumSparkSpUSDTPayload.sol";
 contract Deploy is DeployBase {
 
     function _deployPayload() internal override returns (address payload) {
-        payload = address(new EthereumSparkSpUSDTPayload());
+        payload = address(new EthereumSparkSpUSDTPayload{salt: keccak256("spark.eth.spUSDTPAUPayload")}());
     }
 
     function _getOutputPath() internal pure override returns (string memory) {

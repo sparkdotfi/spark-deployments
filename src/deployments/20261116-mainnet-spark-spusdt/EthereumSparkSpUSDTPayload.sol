@@ -13,7 +13,6 @@ import { IController }     from "../../../lib/diamond-pau/src/interfaces/IContro
 import { IRateLimits }     from "../../../lib/diamond-pau/src/interfaces/IRateLimits.sol";
 import { IAccessControls } from "../../../lib/diamond-pau/src/interfaces/IAccessControls.sol";
 
-import { IAaveFacet }      from "../../../lib/diamond-pau/src/facets/aave/IAaveFacet.sol";
 import { ILayerZeroFacet } from "../../../lib/diamond-pau/src/facets/layer-zero/ILayerZeroFacet.sol";
 import { ISwapAssetFacet } from "../../../lib/diamond-pau/src/facets/swap-asset/ISwapAssetFacet.sol";
 
@@ -67,9 +66,9 @@ contract EthereumSparkSpUSDTPayload {
     bytes32 internal constant DEFAULT_ADMIN_ROLE = 0x00;
     bytes32 internal constant ALLOCATOR_ROLE     = keccak256("ALLOCATOR_ROLE");
 
-    bytes32 internal constant SPARK_PLANNER_ADMINISTERED_AGENT_SALT = "SPARK_PLANNER_ADMINISTERED_AGENT";
-    bytes32 internal constant SPARK_ADMINISTERED_AGENT_SALT         = "SPARK_ADMINISTERED_AGENT";
-    bytes32 internal constant SPARK_SLL_ADMINISTERED_AGENT_SALT     = "SPARK_SLL_ADMINISTERED_AGENT";
+    bytes32 internal constant SPARK_PLANNER_ADMINISTERED_AGENT_SALT = keccak256("spark.eth.plannerAdministeredAgent");
+    bytes32 internal constant SPARK_ADMINISTERED_AGENT_SALT         = keccak256("spark.eth.administeredAgent");
+    bytes32 internal constant SPARK_SLL_ADMINISTERED_AGENT_SALT     = keccak256("spark.eth.sllAdministeredAgent");
 
     address internal constant SPARK_PLANNER_HOT_WALLET        = Ethereum.PLANNER_WALLET;
     address internal constant SPARK_LOW_THRESHOLD_MULTISIG    = Ethereum.SPARK_LOW_THRESHOLD_MULTISIG;
@@ -78,14 +77,14 @@ contract EthereumSparkSpUSDTPayload {
     address internal constant SOTER_GRANTOR_MULTISIG          = Ethereum.SOTER_GRANTOR_MULTISIG;
 
     // SLL PAU Configuration
-    bytes32 internal constant SPARK_SLL_PAU_ACCESS_CONTROLS_SALT = "SPARK_SLL_PAU_ACCESS_CONTROLS";
-    bytes32 internal constant SPARK_SLL_PAU_RATE_LIMITS_SALT     = "SPARK_SLL_PAU_RATE_LIMITS";
-    bytes32 internal constant SPARK_SLL_PAU_CONTROLLER_SALT      = "SPARK_SLL_PAU_CONTROLLER";
+
+    bytes32 internal constant SPARK_SLL_PAU_ACCESS_CONTROLS_SALT = keccak256("spark.eth.sllPAUAccessControls");
+    bytes32 internal constant SPARK_SLL_PAU_RATE_LIMITS_SALT     = keccak256("spark.eth.sllPAURateLimits");
+    bytes32 internal constant SPARK_SLL_PAU_CONTROLLER_SALT      = keccak256("spark.eth.sllPAUController");
 
     // spUSDT PAU Configuration
-    bytes32 internal constant SPARK_SPUSDT_PAU_SALT = "SPARK_SPUSDT_PAU";
 
-    address internal constant AAVE_CORE_POOL = 0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2;
+    bytes32 internal constant SPARK_SPUSDT_PAU_SALT = keccak256("spark.eth.spUSDTPAU");
 
     uint32 internal constant LZ_EID_ARBITRUM = 30110;
     uint32 internal constant LZ_EID_XLAYER   = 30274;
@@ -309,23 +308,6 @@ contract EthereumSparkSpUSDTPayload {
             ISwapAssetFacet(Ethereum.SWAP_ASSET_FACET).getCompleteSwapRateLimitKey(Ethereum.USDS, Ethereum.ALM_PROXY, Ethereum.USDT),
             100_000_000e18,
             uint256(1_000_000_000e18) / 1 days
-        );
-
-        // Aave rate limits
-        rateLimits.setRateLimitData(
-            IAaveFacet(Ethereum.AAVE_FACET).getDepositRateLimitKey({
-                aToken          : Ethereum.ATOKEN_CORE_USDT,
-                pool            : AAVE_CORE_POOL,
-                underlyingAsset : Ethereum.USDT
-            }),
-            100_000_000e6,
-            500_000_000e6 / uint256(1 days)
-        );
-        rateLimits.setUnlimitedRateLimitData(
-            IAaveFacet(Ethereum.AAVE_FACET).getWithdrawRateLimitKey({
-                aToken : Ethereum.ATOKEN_CORE_USDT,
-                pool   : AAVE_CORE_POOL
-            })
         );
     }
 

@@ -20,8 +20,6 @@ import { IRateLimits }             from "../../../lib/diamond-pau/src/interfaces
 
 import { IFacet } from "../../../lib/diamond-pau/src/facets/IFacet.sol";
 
-import { IAaveFacet } from "../../../lib/diamond-pau/src/facets/aave/IAaveFacet.sol";
-
 import { IERC4626Controller }       from "../../../lib/diamond-pau/src/facets/erc4626/IERC4626Controller.sol";
 import { ILayerZeroFacet }          from "../../../lib/diamond-pau/src/facets/layer-zero/ILayerZeroFacet.sol";
 import { ISparkVaultController }    from "../../../lib/diamond-pau/src/facets/spark-vault/ISparkVaultController.sol";
@@ -130,8 +128,6 @@ abstract contract EthereumSparkSpUSDTPayloadTestBase is Test {
 
     bytes32 internal constant LZ_PEER_ARBITRUM = bytes32(uint256(uint160(Arbitrum.USDT_OFT)));
     bytes32 internal constant LZ_PEER_XLAYER   = bytes32(uint256(uint160(XLayer.USDT0_OFT)));
-
-    address internal constant AAVE_CORE_POOL = 0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2;
 
     address internal deploymentPayload;
 
@@ -556,23 +552,6 @@ contract EthereumSparkSpUSDTPayloadTest_SpUSDTPAU is EthereumSparkSpUSDTPayloadT
             swapAssetFacet.getCompleteSwapRateLimitKey(Ethereum.USDS, Ethereum.ALM_PROXY, Ethereum.USDT),
             100_000_000e18,
             uint256(1_000_000_000e18) / 1 days
-        );
-
-        assertEq(IATokenLike(Ethereum.ATOKEN_CORE_USDT).POOL(),                     AAVE_CORE_POOL);
-        assertEq(IATokenLike(Ethereum.ATOKEN_CORE_USDT).UNDERLYING_ASSET_ADDRESS(), Ethereum.USDT);
-
-        IAaveFacet aaveFacet = IAaveFacet(Ethereum.AAVE_FACET);
-
-        _assertRateLimit(
-            spUSDTPAU_rateLimits,
-            aaveFacet.getDepositRateLimitKey(Ethereum.ATOKEN_CORE_USDT, AAVE_CORE_POOL, Ethereum.USDT),
-            100_000_000e6,
-            uint256(500_000_000e6) / 1 days
-        );
-
-        _assertUnlimitedRateLimit(
-            spUSDTPAU_rateLimits,
-            aaveFacet.getWithdrawRateLimitKey(Ethereum.ATOKEN_CORE_USDT, AAVE_CORE_POOL)
         );
     }
 
