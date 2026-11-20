@@ -96,8 +96,8 @@ abstract contract E2ETestBase is Test {
     bytes32 internal constant ETH_PAYLOAD_SALT = keccak256("spark.eth.spUSDTPAUPayload");
     bytes32 internal constant ARB_PAYLOAD_SALT = keccak256("spark.arb.spUSDTPAUPayload");
 
-    address internal constant EXPECTED_ETH_SPUSDT_PAYLOAD = 0xA743c48ACee58c7E49C3533b301d2736ff4B3906;
-    address internal constant EXPECTED_ARB_SPUSDT_PAYLOAD = 0x5c849584F79e6fB7DFa7Fd41a5aF02Ece8AE3FFc;
+    address internal constant EXPECTED_ETH_SPUSDT_PAYLOAD = 0x29f66f804F614938c6647BC01C450ef00cC86947;
+    address internal constant EXPECTED_ARB_SPUSDT_PAYLOAD = 0x2C779C7cDD7Bfe6FA363E7ABB5608d23Bc989F1A;
 
     address internal constant SPARK_PLANNER_HOT_WALLET = Ethereum.PLANNER_WALLET;
 
