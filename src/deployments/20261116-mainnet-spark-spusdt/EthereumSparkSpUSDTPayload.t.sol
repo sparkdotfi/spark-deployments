@@ -6,7 +6,10 @@ import { Test } from "../../../lib/forge-std/src/Test.sol";
 import { IAccessControl } from "../../../lib/diamond-pau/lib/openzeppelin-contracts/contracts/access/IAccessControl.sol";
 
 import { Ethereum as SkyEthereum } from "../../../lib/sky-pau-registry/src/Ethereum.sol";
-import { Ethereum }                from "../../../lib/spark-address-registry/src/Ethereum.sol";
+
+import { Arbitrum } from "../../../lib/spark-address-registry/src/Arbitrum.sol";
+import { Ethereum } from "../../../lib/spark-address-registry/src/Ethereum.sol";
+import { XLayer }   from "../../../lib/spark-address-registry/src/XLayer.sol";
 
 import { IAccessControls }         from "../../../lib/diamond-pau/src/interfaces/IAccessControls.sol";
 import { IBeacon }                 from "../../../lib/diamond-pau/src/interfaces/IBeacon.sol";
@@ -15,8 +18,14 @@ import { IEnumerableIntegrations } from "../../../lib/diamond-pau/src/interfaces
 import { IPAUFactory }             from "../../../lib/diamond-pau/src/interfaces/IPAUFactory.sol";
 import { IRateLimits }             from "../../../lib/diamond-pau/src/interfaces/IRateLimits.sol";
 
+import { IFacet } from "../../../lib/diamond-pau/src/facets/IFacet.sol";
+
+import { IAaveFacet } from "../../../lib/diamond-pau/src/facets/aave/IAaveFacet.sol";
+
 import { IERC4626Controller }       from "../../../lib/diamond-pau/src/facets/erc4626/IERC4626Controller.sol";
+import { ILayerZeroFacet }          from "../../../lib/diamond-pau/src/facets/layer-zero/ILayerZeroFacet.sol";
 import { ISparkVaultController }    from "../../../lib/diamond-pau/src/facets/spark-vault/ISparkVaultController.sol";
+import { ISwapAssetFacet }          from "../../../lib/diamond-pau/src/facets/swap-asset/ISwapAssetFacet.sol";
 import { ITransferAssetController } from "../../../lib/diamond-pau/src/facets/transfer-asset/ITransferAssetController.sol";
 
 import { EthereumSparkSpUSDTPayload } from "./EthereumSparkSpUSDTPayload.sol";
@@ -54,6 +63,14 @@ interface IERC20Like {
     function allowance(address owner, address spender) external view returns (uint256);
 
     function balanceOf(address account) external view returns (uint256);
+
+}
+
+interface IATokenLike {
+
+    function POOL() external view returns (address);
+
+    function UNDERLYING_ASSET_ADDRESS() external view returns (address);
 
 }
 
@@ -105,8 +122,16 @@ abstract contract EthereumSparkSpUSDTPayloadTestBase is Test {
     address internal constant SPARK_PLANNER_HOT_WALLET        = Ethereum.PLANNER_WALLET;
     address internal constant SPARK_LOW_THRESHOLD_MULTISIG    = Ethereum.SPARK_LOW_THRESHOLD_MULTISIG;
     address internal constant SPARK_MEDIUM_THRESHOLD_MULTISIG = Ethereum.SPARK_MEDIUM_THRESHOLD_MULTISIG;
-    address internal constant SOTER_LABS_REVOKER_MULTISIG     = address(4); // TODO: Replace with the final address
-    address internal constant SOTER_LABS_GRANTOR_MULTISIG     = address(5); // TODO: Replace with the final address
+    address internal constant SOTER_REVOKER_MULTISIG          = Ethereum.SOTER_REVOKER_MULTISIG;
+    address internal constant SOTER_GRANTOR_MULTISIG          = Ethereum.SOTER_GRANTOR_MULTISIG;
+
+    uint32 internal constant LZ_EID_ARBITRUM = 30110;
+    uint32 internal constant LZ_EID_XLAYER   = 30274;
+
+    bytes32 internal constant LZ_PEER_ARBITRUM = bytes32(uint256(uint160(Arbitrum.USDT_OFT)));
+    bytes32 internal constant LZ_PEER_XLAYER   = bytes32(uint256(uint160(XLayer.USDT0_OFT)));
+
+    address internal constant AAVE_CORE_POOL = 0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2;
 
     address internal deploymentPayload;
 
@@ -258,6 +283,26 @@ abstract contract EthereumSparkSpUSDTPayloadTestBase is Test {
         assertEq(IRateLimits(rateLimits).getCurrentRateLimit(key), type(uint256).max);
     }
 
+    function _assertRateLimit(address rateLimits, bytes32 key, uint256 maxAmount, uint256 slope) internal view {
+        IRateLimits.RateLimitData memory data = IRateLimits(rateLimits).getRateLimitData(key);
+
+        assertEq(data.maxAmount,   maxAmount);
+        assertEq(data.slope,       slope);
+        assertEq(data.lastAmount,  maxAmount);
+        assertEq(data.lastUpdated, block.timestamp);
+
+        assertEq(IRateLimits(rateLimits).getCurrentRateLimit(key), maxAmount);
+    }
+
+    function _layerZeroKey(bytes32 peer, uint32 eid) internal pure returns (bytes32) {
+        return ILayerZeroFacet(Ethereum.LAYERZERO_FACET).getTransferRateLimitKey(
+            Ethereum.USDT_OFT,
+            peer,
+            eid,
+            Ethereum.USDT
+        );
+    }
+
     function _assertOnlyMember(address target, bytes32 role, address account) internal view {
         assertEq(IAccessControls(target).getRoleMemberCount(role), 1);
         assertEq(IAccessControls(target).getRoleMember(role, 0),   account);
@@ -372,17 +417,17 @@ contract EthereumSparkSpUSDTPayloadTest_AdministeredAgents is EthereumSparkSpUSD
     function test_sparkVaultsAgent_roles() external view {
         address[] memory revokers = new address[](2);
         revokers[0] = SPARK_LOW_THRESHOLD_MULTISIG;
-        revokers[1] = SOTER_LABS_REVOKER_MULTISIG;
+        revokers[1] = SOTER_REVOKER_MULTISIG;
 
-        _assertAgent(sparkAgent, plannerAgent, revokers, SOTER_LABS_GRANTOR_MULTISIG);
+        _assertAgent(sparkAgent, plannerAgent, revokers, SOTER_GRANTOR_MULTISIG);
     }
 
     function test_sllAgent_roles() external view {
         address[] memory revokers = new address[](2);
         revokers[0] = SPARK_LOW_THRESHOLD_MULTISIG;
-        revokers[1] = SOTER_LABS_REVOKER_MULTISIG;
+        revokers[1] = SOTER_REVOKER_MULTISIG;
 
-        _assertAgent(sllAgent, plannerAgent, revokers, SOTER_LABS_GRANTOR_MULTISIG);
+        _assertAgent(sllAgent, plannerAgent, revokers, SOTER_GRANTOR_MULTISIG);
     }
 
     function test_agents_onlySparkProxyAdministers() external {
@@ -425,6 +470,23 @@ contract EthereumSparkSpUSDTPayloadTest_SLLPAU is EthereumSparkSpUSDTPayloadTest
 
     function test_sllPAU_integrations() external view {
         _assertIntegrations(sllPAU_controller, SKY_BEACON, new bytes32[](0));
+    }
+
+    function test_sllPAU_rateLimits() external view {
+        ISwapAssetFacet swapAssetFacet = ISwapAssetFacet(Ethereum.SWAP_ASSET_FACET);
+
+        _assertRateLimit(
+            sllPAU_rateLimits,
+            swapAssetFacet.getInitiateSwapRateLimitKey(Ethereum.USDS, spUSDTPAU_almProxy, spUSDTPAU_controller, Ethereum.USDT),
+            100_000_000e18,
+            uint256(500_000_000e18) / 1 days
+        );
+        _assertRateLimit(
+            sllPAU_rateLimits,
+            swapAssetFacet.getInitiateSwapRateLimitKey(Ethereum.USDT, spUSDTPAU_almProxy, spUSDTPAU_controller, Ethereum.USDS),
+            100_000_000e6,
+            uint256(500_000_000e6) / 1 days
+        );
     }
 
 }
@@ -476,6 +538,42 @@ contract EthereumSparkSpUSDTPayloadTest_SpUSDTPAU is EthereumSparkSpUSDTPayloadT
             spUSDTPAU_rateLimits,
             ITransferAssetController(spUSDTPAU_controller).transferAsset_getTransferRateLimitKey(Ethereum.USDT, SPUSDT)
         );
+
+        _assertRateLimit(spUSDTPAU_rateLimits, _layerZeroKey(LZ_PEER_ARBITRUM, LZ_EID_ARBITRUM), 5_000_000e6, 578_703_703);
+        _assertRateLimit(spUSDTPAU_rateLimits, _layerZeroKey(LZ_PEER_XLAYER, LZ_EID_XLAYER),     5_000_000e6, 1_157_407_407);
+
+        ISwapAssetFacet swapAssetFacet = ISwapAssetFacet(Ethereum.SWAP_ASSET_FACET);
+
+        _assertRateLimit(
+            spUSDTPAU_rateLimits,
+            swapAssetFacet.getCompleteSwapRateLimitKey(Ethereum.USDT, Ethereum.ALM_PROXY, Ethereum.USDS),
+            100_000_000e6,
+            uint256(1_000_000_000e6) / 1 days
+        );
+
+        _assertRateLimit(
+            spUSDTPAU_rateLimits,
+            swapAssetFacet.getCompleteSwapRateLimitKey(Ethereum.USDS, Ethereum.ALM_PROXY, Ethereum.USDT),
+            100_000_000e18,
+            uint256(1_000_000_000e18) / 1 days
+        );
+
+        assertEq(IATokenLike(Ethereum.ATOKEN_CORE_USDT).POOL(),                     AAVE_CORE_POOL);
+        assertEq(IATokenLike(Ethereum.ATOKEN_CORE_USDT).UNDERLYING_ASSET_ADDRESS(), Ethereum.USDT);
+
+        IAaveFacet aaveFacet = IAaveFacet(Ethereum.AAVE_FACET);
+
+        _assertRateLimit(
+            spUSDTPAU_rateLimits,
+            aaveFacet.getDepositRateLimitKey(Ethereum.ATOKEN_CORE_USDT, AAVE_CORE_POOL, Ethereum.USDT),
+            100_000_000e6,
+            uint256(500_000_000e6) / 1 days
+        );
+
+        _assertUnlimitedRateLimit(
+            spUSDTPAU_rateLimits,
+            aaveFacet.getWithdrawRateLimitKey(Ethereum.ATOKEN_CORE_USDT, AAVE_CORE_POOL)
+        );
     }
 
     function test_spUSDTPAU_erc4626_maxExchangeRate() external view {
@@ -494,6 +592,34 @@ contract EthereumSparkSpUSDTPayloadTest_E2E is EthereumSparkSpUSDTPayloadTestBas
     }
 
     // The planner hot wallet reaches the spUSDT PAU only through plannerAgent -> sparkAgent.
+    function test_e2e_planner_cannotBypassAgents() external {
+        bytes memory transferCall = abi.encodeCall(
+            ITransferAssetController.transferAsset_transfer,
+            (Ethereum.USDT, SPUSDT, 1_000_000e6)
+        );
+
+        // Not an allocator of the spUSDT PAU.
+        vm.prank(SPARK_PLANNER_HOT_WALLET);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IFacet.AccessControlUnauthorizedAccount.selector, SPARK_PLANNER_HOT_WALLET, ALLOCATOR_ROLE
+            )
+        );
+        ITransferAssetController(spUSDTPAU_controller).transferAsset_transfer(Ethereum.USDT, SPUSDT, 1_000_000e6);
+
+        // Not an actor of sparkAgent.
+        vm.prank(SPARK_PLANNER_HOT_WALLET);
+        vm.expectRevert(IAdministeredAgentLike.NotActor.selector);
+        IAdministeredAgentLike(sparkAgent).call(spUSDTPAU_controller, transferCall);
+
+        // plannerAgent is not an allocator of the spUSDT PAU either.
+        vm.prank(SPARK_PLANNER_HOT_WALLET);
+        vm.expectRevert(
+            abi.encodeWithSelector(IFacet.AccessControlUnauthorizedAccount.selector, plannerAgent, ALLOCATOR_ROLE)
+        );
+        IAdministeredAgentLike(plannerAgent).call(spUSDTPAU_controller, transferCall);
+    }
+
     function test_e2e_planner_transfersUSDTToSpUSDT() external {
         bytes memory transferCall = abi.encodeCall(
             ITransferAssetController.transferAsset_transfer,
@@ -534,7 +660,7 @@ contract EthereumSparkSpUSDTPayloadTest_E2E is EthereumSparkSpUSDTPayloadTestBas
         uint256 expectedShares = susds.previewDeposit(1_000_000e18);
 
         uint256 shares = abi.decode(
-            _callThroughPannerAgent(
+            _callThroughPlannerAgent(
                 abi.encodeCall(IERC4626Controller.erc4626_deposit, (Ethereum.SUSDS, 1_000_000e18, expectedShares))
             ),
             (uint256)
@@ -555,7 +681,7 @@ contract EthereumSparkSpUSDTPayloadTest_E2E is EthereumSparkSpUSDTPayloadTestBas
         uint256 expectedSharesBurned = susds.previewWithdraw(400_000e18);
 
         uint256 sharesBurned = abi.decode(
-            _callThroughPannerAgent(
+            _callThroughPlannerAgent(
                 abi.encodeCall(IERC4626Controller.erc4626_withdraw, (Ethereum.SUSDS, 400_000e18, expectedSharesBurned))
             ),
             (uint256)
@@ -572,7 +698,7 @@ contract EthereumSparkSpUSDTPayloadTest_E2E is EthereumSparkSpUSDTPayloadTestBas
         uint256 expectedAssets  = susds.previewRedeem(remainingShares);
 
         uint256 assets = abi.decode(
-            _callThroughPannerAgent(
+            _callThroughPlannerAgent(
                 abi.encodeCall(IERC4626Controller.erc4626_redeem, (Ethereum.SUSDS, remainingShares, expectedAssets))
             ),
             (uint256)
@@ -613,7 +739,7 @@ contract EthereumSparkSpUSDTPayloadTest_E2E is EthereumSparkSpUSDTPayloadTestBas
         uint256 totalAssets = spUSDT.totalAssets();
         uint256 totalSupply = spUSDT.totalSupply();
 
-        _callThroughPannerAgent(abi.encodeCall(ISparkVaultController.sparkVault_take, (SPUSDT, 1_000_000e6)));
+        _callThroughPlannerAgent(abi.encodeCall(ISparkVaultController.sparkVault_take, (SPUSDT, 1_000_000e6)));
 
         assertEq(usdt.balanceOf(SPUSDT),            vaultBalance - 1_000_000e6);
         assertEq(usdt.balanceOf(spUSDTPAU_almProxy), almBalance   + 1_000_000e6);
@@ -632,7 +758,7 @@ contract EthereumSparkSpUSDTPayloadTest_E2E is EthereumSparkSpUSDTPayloadTestBas
 
     // Calls the spUSDT PAU Controller as the planner hot wallet through plannerAgent -> sparkAgent,
     // and returns the Controller's return data.
-    function _callThroughPannerAgent(bytes memory controllerCall) internal returns (bytes memory) {
+    function _callThroughPlannerAgent(bytes memory controllerCall) internal returns (bytes memory) {
         bytes memory agentCall = abi.encodeCall(IAdministeredAgentLike.call, (spUSDTPAU_controller, controllerCall));
 
         vm.prank(SPARK_PLANNER_HOT_WALLET);
