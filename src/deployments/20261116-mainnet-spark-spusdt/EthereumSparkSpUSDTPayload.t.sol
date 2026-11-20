@@ -6,7 +6,10 @@ import { Test } from "../../../lib/forge-std/src/Test.sol";
 import { IAccessControl } from "../../../lib/diamond-pau/lib/openzeppelin-contracts/contracts/access/IAccessControl.sol";
 
 import { Ethereum as SkyEthereum } from "../../../lib/sky-pau-registry/src/Ethereum.sol";
-import { Ethereum }                from "../../../lib/spark-address-registry/src/Ethereum.sol";
+
+import { Arbitrum } from "../../../lib/spark-address-registry/src/Arbitrum.sol";
+import { Ethereum } from "../../../lib/spark-address-registry/src/Ethereum.sol";
+import { XLayer }   from "../../../lib/spark-address-registry/src/XLayer.sol";
 
 import { IAccessControls }         from "../../../lib/diamond-pau/src/interfaces/IAccessControls.sol";
 import { IBeacon }                 from "../../../lib/diamond-pau/src/interfaces/IBeacon.sol";
@@ -16,7 +19,9 @@ import { IPAUFactory }             from "../../../lib/diamond-pau/src/interfaces
 import { IRateLimits }             from "../../../lib/diamond-pau/src/interfaces/IRateLimits.sol";
 
 import { IERC4626Controller }       from "../../../lib/diamond-pau/src/facets/erc4626/IERC4626Controller.sol";
+import { ILayerZeroFacet }          from "../../../lib/diamond-pau/src/facets/layer-zero/ILayerZeroFacet.sol";
 import { ISparkVaultController }    from "../../../lib/diamond-pau/src/facets/spark-vault/ISparkVaultController.sol";
+import { ISwapAssetFacet }          from "../../../lib/diamond-pau/src/facets/swap-asset/ISwapAssetFacet.sol";
 import { ITransferAssetController } from "../../../lib/diamond-pau/src/facets/transfer-asset/ITransferAssetController.sol";
 
 import { EthereumSparkSpUSDTPayload } from "./EthereumSparkSpUSDTPayload.sol";
@@ -105,8 +110,14 @@ abstract contract EthereumSparkSpUSDTPayloadTestBase is Test {
     address internal constant SPARK_PLANNER_HOT_WALLET        = Ethereum.PLANNER_WALLET;
     address internal constant SPARK_LOW_THRESHOLD_MULTISIG    = Ethereum.SPARK_LOW_THRESHOLD_MULTISIG;
     address internal constant SPARK_MEDIUM_THRESHOLD_MULTISIG = Ethereum.SPARK_MEDIUM_THRESHOLD_MULTISIG;
-    address internal constant SOTER_LABS_REVOKER_MULTISIG     = address(4); // TODO: Replace with the final address
-    address internal constant SOTER_LABS_GRANTOR_MULTISIG     = address(5); // TODO: Replace with the final address
+    address internal constant SOTER_REVOKER_MULTISIG          = Ethereum.SOTER_REVOKER_MULTISIG;
+    address internal constant SOTER_GRANTOR_MULTISIG          = Ethereum.SOTER_GRANTOR_MULTISIG;
+
+    uint32 internal constant LZ_EID_ARBITRUM = 30110;
+    uint32 internal constant LZ_EID_XLAYER   = 30274;
+
+    bytes32 internal constant LZ_PEER_ARBITRUM = bytes32(uint256(uint160(Arbitrum.USDT_OFT)));
+    bytes32 internal constant LZ_PEER_XLAYER   = bytes32(uint256(uint160(XLayer.USDT0_OFT)));
 
     address internal deploymentPayload;
 
@@ -258,6 +269,26 @@ abstract contract EthereumSparkSpUSDTPayloadTestBase is Test {
         assertEq(IRateLimits(rateLimits).getCurrentRateLimit(key), type(uint256).max);
     }
 
+    function _assertRateLimit(address rateLimits, bytes32 key, uint256 maxAmount, uint256 slope) internal view {
+        IRateLimits.RateLimitData memory data = IRateLimits(rateLimits).getRateLimitData(key);
+
+        assertEq(data.maxAmount,   maxAmount);
+        assertEq(data.slope,       slope);
+        assertEq(data.lastAmount,  maxAmount);
+        assertEq(data.lastUpdated, block.timestamp);
+
+        assertEq(IRateLimits(rateLimits).getCurrentRateLimit(key), maxAmount);
+    }
+
+    function _layerZeroKey(bytes32 peer, uint32 eid) internal pure returns (bytes32) {
+        return ILayerZeroFacet(Ethereum.LAYERZERO_FACET).getTransferRateLimitKey(
+            Ethereum.USDT_OFT,
+            peer,
+            eid,
+            Ethereum.USDT
+        );
+    }
+
     function _assertOnlyMember(address target, bytes32 role, address account) internal view {
         assertEq(IAccessControls(target).getRoleMemberCount(role), 1);
         assertEq(IAccessControls(target).getRoleMember(role, 0),   account);
@@ -372,17 +403,17 @@ contract EthereumSparkSpUSDTPayloadTest_AdministeredAgents is EthereumSparkSpUSD
     function test_sparkVaultsAgent_roles() external view {
         address[] memory revokers = new address[](2);
         revokers[0] = SPARK_LOW_THRESHOLD_MULTISIG;
-        revokers[1] = SOTER_LABS_REVOKER_MULTISIG;
+        revokers[1] = SOTER_REVOKER_MULTISIG;
 
-        _assertAgent(sparkAgent, plannerAgent, revokers, SOTER_LABS_GRANTOR_MULTISIG);
+        _assertAgent(sparkAgent, plannerAgent, revokers, SOTER_GRANTOR_MULTISIG);
     }
 
     function test_sllAgent_roles() external view {
         address[] memory revokers = new address[](2);
         revokers[0] = SPARK_LOW_THRESHOLD_MULTISIG;
-        revokers[1] = SOTER_LABS_REVOKER_MULTISIG;
+        revokers[1] = SOTER_REVOKER_MULTISIG;
 
-        _assertAgent(sllAgent, plannerAgent, revokers, SOTER_LABS_GRANTOR_MULTISIG);
+        _assertAgent(sllAgent, plannerAgent, revokers, SOTER_GRANTOR_MULTISIG);
     }
 
     function test_agents_onlySparkProxyAdministers() external {
@@ -425,6 +456,23 @@ contract EthereumSparkSpUSDTPayloadTest_SLLPAU is EthereumSparkSpUSDTPayloadTest
 
     function test_sllPAU_integrations() external view {
         _assertIntegrations(sllPAU_controller, SKY_BEACON, new bytes32[](0));
+    }
+
+    function test_sllPAU_rateLimits() external view {
+        ISwapAssetFacet swapAssetFacet = ISwapAssetFacet(Ethereum.SWAP_ASSET_FACET);
+
+        _assertRateLimit(
+            sllPAU_rateLimits,
+            swapAssetFacet.getInitiateSwapRateLimitKey(Ethereum.USDS, spUSDTPAU_almProxy, spUSDTPAU_controller, Ethereum.USDT),
+            100_000_000e18,
+            uint256(500_000_000e18) / 1 days
+        );
+        _assertRateLimit(
+            sllPAU_rateLimits,
+            swapAssetFacet.getInitiateSwapRateLimitKey(Ethereum.USDT, spUSDTPAU_almProxy, spUSDTPAU_controller, Ethereum.USDS),
+            100_000_000e6,
+            uint256(500_000_000e6) / 1 days
+        );
     }
 
 }
@@ -475,6 +523,25 @@ contract EthereumSparkSpUSDTPayloadTest_SpUSDTPAU is EthereumSparkSpUSDTPayloadT
         _assertUnlimitedRateLimit(
             spUSDTPAU_rateLimits,
             ITransferAssetController(spUSDTPAU_controller).transferAsset_getTransferRateLimitKey(Ethereum.USDT, SPUSDT)
+        );
+
+        _assertRateLimit(spUSDTPAU_rateLimits, _layerZeroKey(LZ_PEER_ARBITRUM, LZ_EID_ARBITRUM), 5_000_000e6, 578_703_703);
+        _assertRateLimit(spUSDTPAU_rateLimits, _layerZeroKey(LZ_PEER_XLAYER, LZ_EID_XLAYER),     5_000_000e6, 1_157_407_407);
+
+        ISwapAssetFacet swapAssetFacet = ISwapAssetFacet(Ethereum.SWAP_ASSET_FACET);
+
+        _assertRateLimit(
+            spUSDTPAU_rateLimits,
+            swapAssetFacet.getCompleteSwapRateLimitKey(Ethereum.USDT, Ethereum.ALM_PROXY, Ethereum.USDS),
+            100_000_000e6,
+            uint256(1_000_000_000e6) / 1 days
+        );
+
+        _assertRateLimit(
+            spUSDTPAU_rateLimits,
+            swapAssetFacet.getCompleteSwapRateLimitKey(Ethereum.USDS, Ethereum.ALM_PROXY, Ethereum.USDT),
+            100_000_000e18,
+            uint256(1_000_000_000e18) / 1 days
         );
     }
 
