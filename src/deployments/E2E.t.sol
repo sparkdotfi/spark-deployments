@@ -18,7 +18,6 @@ import { IRateLimits } from "../../lib/diamond-pau/src/interfaces/IRateLimits.so
 
 import { BeaconConfig } from "../../lib/diamond-pau/src/libraries/BeaconConfig.sol";
 
-import { IAaveController }          from "../../lib/diamond-pau/src/facets/aave/IAaveController.sol";
 import { IERC4626Controller }       from "../../lib/diamond-pau/src/facets/erc4626/IERC4626Controller.sol";
 import { ILayerZeroController }     from "../../lib/diamond-pau/src/facets/layer-zero/ILayerZeroController.sol";
 import { ILayerZeroFacet }          from "../../lib/diamond-pau/src/facets/layer-zero/ILayerZeroFacet.sol";
@@ -72,7 +71,6 @@ interface IEthSllController is IController, ISwapAssetController {}
 
 interface IEthSpUSDTController is
     IController,
-    IAaveController,
     IERC4626Controller,
     ILayerZeroController,
     ISparkVaultController,
@@ -94,8 +92,9 @@ abstract contract E2ETestBase is Test {
     uint32 internal constant LZ_ETHEREUM_EID = 30101;
     uint32 internal constant LZ_ARBITRUM_EID = 30110;
 
-    // Aave v3 Core Pool, not in the address registry.
-    address internal constant AAVE_CORE_POOL = 0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2;
+    // Salts used by the Deploy scripts of each payload
+    bytes32 internal constant ETH_PAYLOAD_SALT = keccak256("spark.eth.spUSDTPAUPayload");
+    bytes32 internal constant ARB_PAYLOAD_SALT = keccak256("spark.arb.spUSDTPAUPayload");
 
     address internal constant SPARK_PLANNER_HOT_WALLET = Ethereum.PLANNER_WALLET;
 
@@ -149,7 +148,6 @@ abstract contract E2ETestBase is Test {
 
     IERC20Like internal usdt  = IERC20Like(Ethereum.USDT);
     IERC20Like internal usds  = IERC20Like(Ethereum.USDS);
-    IERC20Like internal aUsdt = IERC20Like(Ethereum.ATOKEN_CORE_USDT);
     IERC20Like internal usdt0 = IERC20Like(Arbitrum.USDT0);
 
     IERC4626Like internal susds = IERC4626Like(Ethereum.SUSDS);
@@ -160,8 +158,6 @@ abstract contract E2ETestBase is Test {
     bytes32 internal ethTakeKey;
     bytes32 internal ethTransferKey;
     bytes32 internal ethLayerZeroKey;
-    bytes32 internal ethAaveDepositKey;
-    bytes32 internal ethAaveWithdrawKey;
     bytes32 internal ethERC4626DepositKey;
     bytes32 internal ethERC4626WithdrawKey;
     bytes32 internal sllSwapInitiateUSDSKey;
@@ -185,8 +181,11 @@ abstract contract E2ETestBase is Test {
 
         mainnet.selectFork();
 
-        EthereumSparkSpUSDTPayload.Report memory ethReport 
-            = EthereumSparkSpUSDTPayload(address(new EthereumSparkSpUSDTPayload())).report();
+        // Deployed through the CREATE2 factory with the Deploy script's salt, so the spUSDT ALM Proxy is the
+        // Ethereum LayerZero recipient set by the Arbitrum payload.
+        address ethPayload = _deployWithCreate2(ETH_PAYLOAD_SALT, type(EthereumSparkSpUSDTPayload).creationCode);
+
+        EthereumSparkSpUSDTPayload.Report memory ethReport = EthereumSparkSpUSDTPayload(ethPayload).report();
 
         ethPlannerAgent = IAdministeredAgentLike(ethReport.plannerAgent);
         ethSparkAgent   = IAdministeredAgentLike(ethReport.sparkAgent);
@@ -208,8 +207,9 @@ abstract contract E2ETestBase is Test {
         // Making sure the Arbitrum Beacon payload was already executed on-chain.
         assertEq(IPAUFactory(Arbitrum.SPARK_PAU_FACTORY).beacon(), Arbitrum.SPARK_BEACON);
 
-        ArbitrumSparkSpUSDTPayload.Report memory arbReport 
-            = ArbitrumSparkSpUSDTPayload(address(new ArbitrumSparkSpUSDTPayload())).report();
+        address arbPayload = _deployWithCreate2(ARB_PAYLOAD_SALT, type(ArbitrumSparkSpUSDTPayload).creationCode);
+
+        ArbitrumSparkSpUSDTPayload.Report memory arbReport = ArbitrumSparkSpUSDTPayload(arbPayload).report();
 
         arbPlannerAgent = IAdministeredAgentLike(arbReport.plannerAgent);
         arbSparkAgent   = IAdministeredAgentLike(arbReport.sparkAgent);
@@ -218,6 +218,12 @@ abstract contract E2ETestBase is Test {
         arbSpUSDTPAU_almProxy       = arbReport.spUSDTPAU_almProxy;
         arbSpUSDTPAU_controller     = IArbSpUSDTController(arbReport.spUSDTPAU_controller);
         arbSpUSDTPAU_rateLimits     = IRateLimits(arbReport.spUSDTPAU_rateLimits);
+
+        // The Arbitrum payload sends USDT0 to the Ethereum spUSDT ALM Proxy deployed above.
+        assertEq(
+            arbSpUSDTPAU_controller.layerZero_getRecipient(LZ_ETHEREUM_EID),
+            bytes32(uint256(uint160(ethSpUSDTPAU_almProxy)))
+        );
 
         // Step 3: Create the LayerZero bridge
 
@@ -268,6 +274,16 @@ abstract contract E2ETestBase is Test {
     /*** Internal helpers                                                                       ***/
     /**********************************************************************************************/
 
+    // Deploys `creationCode` through the CREATE2 factory, as the Deploy scripts do when broadcasting.
+    function _deployWithCreate2(bytes32 salt, bytes memory creationCode) internal returns (address deployed) {
+        deployed = vm.computeCreate2Address(salt, keccak256(creationCode));
+
+        ( bool success, ) = CREATE2_FACTORY.call(abi.encodePacked(salt, creationCode));
+
+        assertTrue(success);
+        assertGt(deployed.code.length, 0);
+    }
+
     function _assignRatelimitKeys() internal {
         mainnet.selectFork();
 
@@ -283,16 +299,6 @@ abstract contract E2ETestBase is Test {
             peer                  : bytes32(uint256(uint160(Arbitrum.USDT_OFT))),
             destinationEndpointId : LZ_ARBITRUM_EID,
             token                 : Ethereum.USDT
-        });
-
-        ethAaveDepositKey = ethSpUSDTPAU_controller.aave_getDepositRateLimitKey({
-            aToken          : Ethereum.ATOKEN_CORE_USDT,
-            pool            : AAVE_CORE_POOL,
-            underlyingAsset : Ethereum.USDT
-        });
-        ethAaveWithdrawKey = ethSpUSDTPAU_controller.aave_getWithdrawRateLimitKey({
-            aToken : Ethereum.ATOKEN_CORE_USDT,
-            pool   : AAVE_CORE_POOL
         });
 
         ethERC4626DepositKey = ethSpUSDTPAU_controller.erc4626_getDepositRateLimitKey({
@@ -358,9 +364,8 @@ abstract contract E2ETestBase is Test {
         mainnet.selectFork();
         vm.startPrank(Ethereum.SPARK_PROXY);
 
-        // Step 1: Onboard the Aave, LayerZero and SwapAsset integrations on the Ethereum Beacon
+        // Step 1: Onboard the LayerZero and SwapAsset integrations on the Ethereum Beacon
 
-        BeaconConfig.setAaveIntegration(Ethereum.SPARK_BEACON,      Ethereum.AAVE_FACET);
         BeaconConfig.setLayerZeroIntegration(Ethereum.SPARK_BEACON, Ethereum.LAYERZERO_FACET);
         BeaconConfig.setSwapAssetIntegration(Ethereum.SPARK_BEACON, Ethereum.SWAP_ASSET_FACET);
 
@@ -373,27 +378,22 @@ abstract contract E2ETestBase is Test {
 
         ethSllPAU_controller.updateIntegrations(ethSllPAUIntegrationIds); // Consumes from Sky Beacon
 
-        // Step 3: spUSDT PAU, onboard Aave, LayerZero and SwapAsset
+        // Step 3: spUSDT PAU, onboard LayerZero and SwapAsset
 
-        bytes32[] memory spUSDTIntegrationIds = new bytes32[](3);
-        spUSDTIntegrationIds[0] = "AAVE_FACET";
-        spUSDTIntegrationIds[1] = "LAYER_ZERO_FACET";
-        spUSDTIntegrationIds[2] = "SWAP_ASSET_FACET";
+        bytes32[] memory spUSDTIntegrationIds = new bytes32[](2);
+        spUSDTIntegrationIds[0] = "LAYER_ZERO_FACET";
+        spUSDTIntegrationIds[1] = "SWAP_ASSET_FACET";
 
         ethSpUSDTPAU_controller.updateIntegrations(spUSDTIntegrationIds);
 
-        // Step 4: Aave V3 core USDT set max slippage
-
-        ethSpUSDTPAU_controller.aave_setMaxSlippage(Ethereum.ATOKEN_CORE_USDT, 0.99999e18);
-
-        // Step 5: Set the LayerZero recipient on Ethereum to the Arbitrum spUSDT ALM Proxy
+        // Step 4: Set the LayerZero recipient on Ethereum to the Arbitrum spUSDT ALM Proxy
 
         ethSpUSDTPAU_controller.layerZero_setRecipient(
             LZ_ARBITRUM_EID,
             bytes32(uint256(uint160(arbSpUSDTPAU_almProxy)))
         );
 
-        // Step 6: Grant spUSDT TAKER_ROLE to the Ethereum spUSDT ALM Proxy
+        // Step 5: Grant spUSDT TAKER_ROLE to the Ethereum spUSDT ALM Proxy
 
         ISparkVaultLike(Ethereum.SPARK_VAULT_V2_SPUSDT).grantRole(
             ISparkVaultLike(Ethereum.SPARK_VAULT_V2_SPUSDT).TAKER_ROLE(),
@@ -407,16 +407,7 @@ abstract contract E2ETestBase is Test {
         arbitrum.selectFork();
         vm.startPrank(Arbitrum.SPARK_EXECUTOR);
 
-        // Step 7: Set the LayerZero recipient on Arbitrum to the Ethereum spUSDT ALM Proxy,
-        //         replacing the placeholder set by the ArbitrumSparkSpUSDTPayload deployment payload
-        //         (TODO: Remove this step once the deployment payload is updated)
-
-        arbSpUSDTPAU_controller.layerZero_setRecipient(
-            LZ_ETHEREUM_EID,
-            bytes32(uint256(uint160(ethSpUSDTPAU_almProxy)))
-        );
-
-        // Step 8: Grant spUSDT TAKER_ROLE to the Arbitrum spUSDT ALM Proxy
+        // Step 6: Grant spUSDT TAKER_ROLE to the Arbitrum spUSDT ALM Proxy
 
         ISparkVaultLike(Arbitrum.SPARK_VAULT_V2_SPUSDT).grantRole(
             ISparkVaultLike(Arbitrum.SPARK_VAULT_V2_SPUSDT).TAKER_ROLE(),
@@ -439,11 +430,11 @@ contract E2ETest is E2ETestBase {
         mainnet.selectFork();
 
         // The SLL ALMProxy holds no idle USDS or USDT at the fork block, it needs both to complete the swaps.
-        deal(Ethereum.USDS, Ethereum.ALM_PROXY, 1_000_000e18);
-        deal(Ethereum.USDT, Ethereum.ALM_PROXY, 1_000_000e6);
+        deal(Ethereum.USDS, Ethereum.ALM_PROXY, 2_000_000e18);
+        deal(Ethereum.USDT, Ethereum.ALM_PROXY, 2_000_000e6);
 
-        // spUSDT VSR (~4.25%) accrues faster than the sUSDS and Aave yield, so the strategy alone does not
-        // cover what both users are owed after 1 day. This buffer funds the difference.
+        // spUSDT VSR (~4.25%) accrues faster than the sUSDS yield, so the strategy alone does not cover what
+        // both users are owed after 1 day. This buffer funds the difference.
         deal(Ethereum.USDT, ethSpUSDTPAU_almProxy, 100e6);
 
         deal(Ethereum.USDT, user, 1_000_000e6);
@@ -607,34 +598,8 @@ contract E2ETest is E2ETestBase {
         assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 2_000_100e6);
         assertEq(usdt.balanceOf(Ethereum.USDT_OFT),     3_668_379_157.913483e6);
 
-        // Step 7: ethSparkAgent (ethPlannerAgent) deposits 1_000_000e6 USDT to Aave v3 using AaveFacet
-
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethAaveDepositKey),  100_000_000e6);
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethAaveWithdrawKey), type(uint256).max);
-
-        assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy),  2_000_100e6);
-        assertEq(aUsdt.balanceOf(ethSpUSDTPAU_almProxy), 0);
-
-        vm.prank(SPARK_PLANNER_HOT_WALLET);
-        ethPlannerAgent.call(
-            address(ethSparkAgent),
-            abi.encodeCall(
-                IAdministeredAgentLike.call,
-                (
-                    address(ethSpUSDTPAU_controller),
-                    abi.encodeCall(IAaveController.aave_deposit, (Ethereum.ATOKEN_CORE_USDT, 1_000_000e6))
-                )
-            )
-        );
-
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethAaveDepositKey),  99_000_000e6);
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethAaveWithdrawKey), type(uint256).max);
-
-        assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy),  1_000_100e6);
-        assertEq(aUsdt.balanceOf(ethSpUSDTPAU_almProxy), 1_000_000e6 - 1);  // aToken rounding
-
-        // Step 8: ethSllAgent (ethPlannerAgent) initiates a swap on the SLL PAU of 1_000_000e18 USDS for
-        //         1_000_000e6 USDT, completed by the spUSDT PAU using SwapAssetFacet
+        // Step 7: ethSllAgent (ethPlannerAgent) initiates a swap on the SLL PAU of 2_000_000e18 USDS for
+        //         2_000_000e6 USDT, completed by the spUSDT PAU using SwapAssetFacet
 
         assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDSKey), 100_000_000e18);
         assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDTKey), 100_000_000e6);
@@ -642,10 +607,10 @@ contract E2ETest is E2ETestBase {
         assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDTKey), 100_000_000e6);
         assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDSKey), 100_000_000e18);
 
-        assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 1_000_100e6);
+        assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 2_000_100e6);
         assertEq(usds.balanceOf(ethSpUSDTPAU_almProxy), 0);
-        assertEq(usdt.balanceOf(Ethereum.ALM_PROXY),    1_000_000e6);
-        assertEq(usds.balanceOf(Ethereum.ALM_PROXY),    1_000_000e18);
+        assertEq(usdt.balanceOf(Ethereum.ALM_PROXY),    2_000_000e6);
+        assertEq(usds.balanceOf(Ethereum.ALM_PROXY),    2_000_000e18);
 
         vm.prank(SPARK_PLANNER_HOT_WALLET);
         ethPlannerAgent.call(
@@ -656,30 +621,30 @@ contract E2ETest is E2ETestBase {
                     address(ethSllPAU_controller),
                     abi.encodeCall(
                         ISwapAssetController.swapAsset_initiateSwap,
-                        (address(ethSpUSDTPAU_controller), Ethereum.USDS, Ethereum.USDT, 1_000_000e18)
+                        (address(ethSpUSDTPAU_controller), Ethereum.USDS, Ethereum.USDT, 2_000_000e18)
                     )
                 )
             )
         );
 
         // The reverse direction keys increase, already at max so they stay at max.
-        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDSKey), 99_000_000e18);
+        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDSKey), 98_000_000e18);
         assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDTKey), 100_000_000e6);
 
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDTKey), 99_000_000e6);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDTKey), 98_000_000e6);
         assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDSKey), 100_000_000e18);
 
         assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 100e6);
-        assertEq(usds.balanceOf(ethSpUSDTPAU_almProxy), 1_000_000e18);
-        assertEq(usdt.balanceOf(Ethereum.ALM_PROXY),    2_000_000e6);
+        assertEq(usds.balanceOf(ethSpUSDTPAU_almProxy), 2_000_000e18);
+        assertEq(usdt.balanceOf(Ethereum.ALM_PROXY),    4_000_000e6);
         assertEq(usds.balanceOf(Ethereum.ALM_PROXY),    0);
 
-        // Step 9: ethSparkAgent (ethPlannerAgent) deposits 1_000_000e6 USDS to sUSDS using ERC4626Facet
+        // Step 8: ethSparkAgent (ethPlannerAgent) deposits 2_000_000e18 USDS to sUSDS using ERC4626Facet
 
         assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethERC4626DepositKey),  type(uint256).max);
         assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethERC4626WithdrawKey), type(uint256).max);
 
-        assertEq(usds.balanceOf(ethSpUSDTPAU_almProxy),  1_000_000e18);
+        assertEq(usds.balanceOf(ethSpUSDTPAU_almProxy),  2_000_000e18);
         assertEq(susds.balanceOf(ethSpUSDTPAU_almProxy), 0);
 
         vm.prank(SPARK_PLANNER_HOT_WALLET);
@@ -691,7 +656,7 @@ contract E2ETest is E2ETestBase {
                     address(ethSpUSDTPAU_controller),
                     abi.encodeCall(
                         IERC4626Controller.erc4626_deposit,
-                        (Ethereum.SUSDS, 1_000_000e18, 895_510.173770426879912595e18)
+                        (Ethereum.SUSDS, 2_000_000e18, 1_791_020.347540853759825191e18)
                     )
                 )
             )
@@ -701,11 +666,11 @@ contract E2ETest is E2ETestBase {
         assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethERC4626WithdrawKey), type(uint256).max);
 
         assertEq(usds.balanceOf(ethSpUSDTPAU_almProxy),  0);
-        assertEq(susds.balanceOf(ethSpUSDTPAU_almProxy), 895_510.173770426879912595e18);
+        assertEq(susds.balanceOf(ethSpUSDTPAU_almProxy), 1_791_020.347540853759825191e18);
 
-        assertEq(susds.convertToAssets(895_510.173770426879912595e18), 1_000_000e18 - 2);  // Rounding
+        assertEq(susds.convertToAssets(1_791_020.347540853759825191e18), 2_000_000e18 - 1);  // Rounding
 
-        // Step 10: skip 1 day on Ethereum and Arbitrum to let the aUSDT, sUSDS and spUSDT on Arbitrum accrue yield
+        // Step 9: skip 1 day on Ethereum and Arbitrum to let the sUSDS and spUSDT on Arbitrum accrue yield
 
         skip(1 days);
 
@@ -716,49 +681,20 @@ contract E2ETest is E2ETestBase {
 
         mainnet.selectFork();
 
-        assertEq(aUsdt.balanceOf(ethSpUSDTPAU_almProxy),               1_000_085.180538e6);              // 85.180538e6 is the interest accrued
-        assertEq(susds.convertToAssets(895_510.173770426879912595e18), 1_000_102.185452752247429128e18); // 102.185452752247429128e18 is the interest accrued
-        assertEq(ethSpUSDT.convertToAssets(964_255.176919e6),          1_000_114.038486e6);              // 114.038486e6 is the interest owed to the user on Ethereum
+        assertEq(susds.convertToAssets(1_791_020.347540853759825191e18), 2_000_204.370905504494858258e18); // 204.370905504494858258e18 is the interest accrued
+        assertEq(ethSpUSDT.convertToAssets(964_255.176919e6),            1_000_114.038486e6);              // 114.038486e6 is the interest owed to the user on Ethereum
 
         // Rate limits fully recharged
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethAaveDepositKey),      100_000_000e6);
         assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDSKey),    100_000_000e18);
         assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDTKey), 100_000_000e6);
 
-        // Step 11: ethSparkAgent (ethPlannerAgent) withdraws 1_000_000e6 + interest USDT from Aave v3 using AaveFacet
-
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethAaveDepositKey),  100_000_000e6);
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethAaveWithdrawKey), type(uint256).max);
-
-        assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy),  100e6);
-        assertEq(aUsdt.balanceOf(ethSpUSDTPAU_almProxy), 1_000_085.180538e6);
-
-        vm.prank(SPARK_PLANNER_HOT_WALLET);
-        ethPlannerAgent.call(
-            address(ethSparkAgent),
-            abi.encodeCall(
-                IAdministeredAgentLike.call,
-                (
-                    address(ethSpUSDTPAU_controller),
-                    abi.encodeCall(IAaveController.aave_withdraw, (Ethereum.ATOKEN_CORE_USDT, 1_000_085.180538e6))
-                )
-            )
-        );
-
-        // The deposit key increases on withdraw, already at max so it stays at max.
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethAaveDepositKey),  100_000_000e6);
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethAaveWithdrawKey), type(uint256).max);
-
-        assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy),  1_000_185.180538e6);
-        assertEq(aUsdt.balanceOf(ethSpUSDTPAU_almProxy), 0);
-
-        // Step 12: ethSparkAgent (ethPlannerAgent) withdraws 1_000_000e6 + interest USDS from sUSDS using ERC4626Facet
+        // Step 10: ethSparkAgent (ethPlannerAgent) withdraws 2_000_000e18 + interest USDS from sUSDS using ERC4626Facet
 
         assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethERC4626DepositKey),  type(uint256).max);
         assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethERC4626WithdrawKey), type(uint256).max);
 
         assertEq(usds.balanceOf(ethSpUSDTPAU_almProxy),  0);
-        assertEq(susds.balanceOf(ethSpUSDTPAU_almProxy), 895_510.173770426879912595e18);
+        assertEq(susds.balanceOf(ethSpUSDTPAU_almProxy), 1_791_020.347540853759825191e18);
 
         vm.prank(SPARK_PLANNER_HOT_WALLET);
         ethPlannerAgent.call(
@@ -769,7 +705,7 @@ contract E2ETest is E2ETestBase {
                     address(ethSpUSDTPAU_controller),
                     abi.encodeCall(
                         IERC4626Controller.erc4626_redeem,
-                        (Ethereum.SUSDS, 895_510.173770426879912595e18, 1_000_102.185452752247429128e18)
+                        (Ethereum.SUSDS, 1_791_020.347540853759825191e18, 2_000_204.370905504494858258e18)
                     )
                 )
             )
@@ -778,10 +714,10 @@ contract E2ETest is E2ETestBase {
         assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethERC4626DepositKey),  type(uint256).max);
         assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethERC4626WithdrawKey), type(uint256).max);
 
-        assertEq(usds.balanceOf(ethSpUSDTPAU_almProxy),  1_000_102.185452752247429128e18);
+        assertEq(usds.balanceOf(ethSpUSDTPAU_almProxy),  2_000_204.370905504494858258e18);
         assertEq(susds.balanceOf(ethSpUSDTPAU_almProxy), 0);
 
-        // Step 13: ethSllAgent (ethPlannerAgent) initiates a swap on the SLL PAU of 1_000_000e6 USDT + interest
+        // Step 11: ethSllAgent (ethPlannerAgent) initiates a swap on the SLL PAU of 2_000_000e6 USDT + interest
         //          for the USDS + interest, completed by the spUSDT PAU using SwapAssetFacet
 
         assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDSKey), 100_000_000e18);
@@ -790,9 +726,9 @@ contract E2ETest is E2ETestBase {
         assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDTKey), 100_000_000e6);
         assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDSKey), 100_000_000e18);
 
-        assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 1_000_185.180538e6);
-        assertEq(usds.balanceOf(ethSpUSDTPAU_almProxy), 1_000_102.185452752247429128e18);
-        assertEq(usdt.balanceOf(Ethereum.ALM_PROXY),    2_000_000e6);
+        assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 100e6);
+        assertEq(usds.balanceOf(ethSpUSDTPAU_almProxy), 2_000_204.370905504494858258e18);
+        assertEq(usdt.balanceOf(Ethereum.ALM_PROXY),    4_000_000e6);
         assertEq(usds.balanceOf(Ethereum.ALM_PROXY),    0);
 
         // The SLL sends USDT, so the spUSDT PAU sends amountOut * 1e12 USDS, the USDS dust below 1e12 stays
@@ -806,7 +742,7 @@ contract E2ETest is E2ETestBase {
                     address(ethSllPAU_controller),
                     abi.encodeCall(
                         ISwapAssetController.swapAsset_initiateSwap,
-                        (address(ethSpUSDTPAU_controller), Ethereum.USDT, Ethereum.USDS, 1_000_102.185452e6)
+                        (address(ethSpUSDTPAU_controller), Ethereum.USDT, Ethereum.USDS, 2_000_204.370905e6)
                     )
                 )
             )
@@ -814,21 +750,21 @@ contract E2ETest is E2ETestBase {
 
         // The reverse direction keys increase, already at max so they stay at max.
         assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDSKey), 100_000_000e18);
-        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDTKey), 98_999_897.814548e6);
+        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDTKey), 97_999_795.629095e6);
 
         assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDTKey), 100_000_000e6);
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDSKey), 98_999_897.814548e18);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDSKey), 97_999_795.629095e18);
 
-        assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 2_000_287.365990e6);
-        assertEq(usds.balanceOf(ethSpUSDTPAU_almProxy), 0.000000752247429128e18);
-        assertEq(usdt.balanceOf(Ethereum.ALM_PROXY),    999_897.814548e6);
-        assertEq(usds.balanceOf(Ethereum.ALM_PROXY),    1_000_102.185452e18);
+        assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 2_000_304.370905e6);
+        assertEq(usds.balanceOf(ethSpUSDTPAU_almProxy), 0.000000504494858258e18);
+        assertEq(usdt.balanceOf(Ethereum.ALM_PROXY),    1_999_795.629095e6);
+        assertEq(usds.balanceOf(Ethereum.ALM_PROXY),    2_000_204.370905e18);
 
-        // Step 14: ethSparkAgent (ethPlannerAgent) transfers 1_000_000e6 USDT + interest to Ethereum spUSDT vault using TransferAssetFacet
+        // Step 12: ethSparkAgent (ethPlannerAgent) transfers 1_000_000e6 USDT + interest to Ethereum spUSDT vault using TransferAssetFacet
 
         assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethTransferKey), type(uint256).max);
 
-        assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 2_000_287.365990e6);
+        assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 2_000_304.370905e6);
         assertEq(usdt.balanceOf(address(ethSpUSDT)),    66_176_872.510365e6);
 
         vm.prank(SPARK_PLANNER_HOT_WALLET);
@@ -848,14 +784,14 @@ contract E2ETest is E2ETestBase {
 
         assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethTransferKey), type(uint256).max);
 
-        assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 1_000_173.327504e6);
+        assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 1_000_190.332419e6);
         assertEq(usdt.balanceOf(address(ethSpUSDT)),    67_176_986.548851e6);
 
-        // Step 15: ethSparkAgent (ethPlannerAgent) bridges 1_000_000e6 USDT + interest to Arbitrum spUSDT PAU using LayerZeroFacet
+        // Step 13: ethSparkAgent (ethPlannerAgent) bridges 1_000_000e6 USDT + interest to Arbitrum spUSDT PAU using LayerZeroFacet
 
         assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethLayerZeroKey), 5_000_000e6);
 
-        assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 1_000_173.327504e6);
+        assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 1_000_190.332419e6);
         assertEq(usdt.balanceOf(Ethereum.USDT_OFT),     3_668_379_157.913483e6);
 
         ( , ILayerZeroFacet.MessagingFee memory ethFee ) = ethSpUSDTPAU_controller
@@ -879,10 +815,10 @@ contract E2ETest is E2ETestBase {
         assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethLayerZeroKey), 5_000_000e6 - 1_000_114.038487e6);
 
         // USDT is locked in the OFT adapter on Ethereum.
-        assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 59.289017e6);
+        assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 76.293932e6);
         assertEq(usdt.balanceOf(Ethereum.USDT_OFT),     3_669_379_271.951970e6);
 
-        // Step 16: Relay the message to Arbitrum
+        // Step 14: Relay the message to Arbitrum
 
         arbitrum.selectFork();
 
@@ -895,7 +831,7 @@ contract E2ETest is E2ETestBase {
         assertEq(usdt0.balanceOf(arbSpUSDTPAU_almProxy), 1_000_114.038487e6);
         assertEq(usdt0.totalSupply(),                    895_730_549.739557e6);
 
-        // Step 17: arbSparkAgent (arbPlannerAgent) transfers 1_000_000e6 USDT + interest to Arbitrum spUSDT vault using TransferAssetFacet
+        // Step 15: arbSparkAgent (arbPlannerAgent) transfers 1_000_000e6 USDT + interest to Arbitrum spUSDT vault using TransferAssetFacet
 
         assertEq(arbSpUSDTPAU_rateLimits.getCurrentRateLimit(arbTransferKey), type(uint256).max);
 
@@ -922,7 +858,7 @@ contract E2ETest is E2ETestBase {
         assertEq(usdt0.balanceOf(arbSpUSDTPAU_almProxy), 0);
         assertEq(usdt0.balanceOf(address(arbSpUSDT)),    2_053_797.016310e6);
 
-        // Step 18: User redeems their Ethereum spUSDT deposit and receives the 1_000_000e6 USDT + interest
+        // Step 16: User redeems their Ethereum spUSDT deposit and receives the 1_000_000e6 USDT + interest
 
         mainnet.selectFork();
 
@@ -943,7 +879,7 @@ contract E2ETest is E2ETestBase {
         assertEq(ethSpUSDT.totalSupply(),   284_798_803.357315e6);
         assertEq(ethSpUSDT.balanceOf(user), 0);
 
-        // Step 19: User redeems their Arbitrum spUSDT deposit and receives the 1_000_000e6 USDT + interest
+        // Step 17: User redeems their Arbitrum spUSDT deposit and receives the 1_000_000e6 USDT + interest
 
         arbitrum.selectFork();
 
@@ -969,8 +905,8 @@ contract E2ETest is E2ETestBase {
 
         mainnet.selectFork();
 
-        assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 59.289017e6);             // Remaining dust from the buffer deal of 100e6
-        assertEq(usds.balanceOf(ethSpUSDTPAU_almProxy), 0.000000752247429128e18); // Remaining USDS swap dust
+        assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 76.293932e6);             // Remaining dust from the buffer deal of 100e6
+        assertEq(usds.balanceOf(ethSpUSDTPAU_almProxy), 0.000000504494858258e18); // Remaining USDS swap dust
     }
 
 }
