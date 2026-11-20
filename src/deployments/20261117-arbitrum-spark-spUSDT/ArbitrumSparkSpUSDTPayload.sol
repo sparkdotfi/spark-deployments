@@ -66,8 +66,8 @@ contract ArbitrumSparkSpUSDTPayload {
     address internal constant SPARK_PLANNER_HOT_WALLET        = Arbitrum.PLANNER_WALLET;
     address internal constant SPARK_LOW_THRESHOLD_MULTISIG    = Arbitrum.SPARK_LOW_THRESHOLD_MULTISIG;
     address internal constant SPARK_MEDIUM_THRESHOLD_MULTISIG = Arbitrum.SPARK_MEDIUM_THRESHOLD_MULTISIG;
-    address internal constant SOTER_LABS_REVOKER_MULTISIG     = address(4); // TODO: Replace with the final address
-    address internal constant SOTER_LABS_GRANTOR_MULTISIG     = address(5); // TODO: Replace with the final address
+    address internal constant SOTER_REVOKER_MULTISIG          = Arbitrum.SOTER_REVOKER_MULTISIG;
+    address internal constant SOTER_GRANTOR_MULTISIG          = Arbitrum.SOTER_GRANTOR_MULTISIG;
 
     // spUSDT PAU Configuration
 
@@ -148,7 +148,6 @@ contract ArbitrumSparkSpUSDTPayload {
         IAdministeredAgent plannerAgent     = IAdministeredAgent(_report.plannerAgent);
         IAdministeredAgent sparkAgent = IAdministeredAgent(_report.sparkAgent);
 
-        // TODO: change this accordingly.
         plannerAgent.addAdmin(Arbitrum.SPARK_EXECUTOR);
         plannerAgent.addActor(SPARK_PLANNER_HOT_WALLET);
         plannerAgent.addRevoker(SPARK_LOW_THRESHOLD_MULTISIG);
@@ -157,8 +156,8 @@ contract ArbitrumSparkSpUSDTPayload {
         sparkAgent.addAdmin(Arbitrum.SPARK_EXECUTOR);
         sparkAgent.addActor(_report.plannerAgent);
         sparkAgent.addRevoker(SPARK_LOW_THRESHOLD_MULTISIG);
-        sparkAgent.addRevoker(SOTER_LABS_REVOKER_MULTISIG);
-        sparkAgent.addGrantor(SOTER_LABS_GRANTOR_MULTISIG);
+        sparkAgent.addRevoker(SOTER_REVOKER_MULTISIG);
+        sparkAgent.addGrantor(SOTER_GRANTOR_MULTISIG);
     }
 
     function _configureSpUSDTPAU() internal {
@@ -173,16 +172,12 @@ contract ArbitrumSparkSpUSDTPayload {
         rateLimits.grantRole(rateLimits.CONTROLLER(), _report.spUSDTPAU_controller);
         accessControls.grantRole(ALLOCATOR_ROLE,      _report.sparkAgent);
 
-        // Onboaring facets
+        // Onboarding facets
 
-        bytes32[] memory integrationIds = new bytes32[](7);
-        integrationIds[0] = "AAVE_FACET";
-        integrationIds[1] = "CCTP_FACET";
-        integrationIds[2] = "ERC4626_FACET";
-        integrationIds[3] = "LAYER_ZERO_FACET";
-        integrationIds[4] = "SPARK_VAULT_FACET";
-        integrationIds[5] = "TRANSFER_ASSET_FACET";
-        integrationIds[6] = "UNISWAP_V4_FACET";
+        bytes32[] memory integrationIds = new bytes32[](3);
+        integrationIds[0] = "LAYER_ZERO_FACET";
+        integrationIds[1] = "SPARK_VAULT_FACET";
+        integrationIds[2] = "TRANSFER_ASSET_FACET";
 
         controller.updateIntegrations(integrationIds);
 
@@ -202,7 +197,7 @@ contract ArbitrumSparkSpUSDTPayload {
             controller.layerZero_getTransferRateLimitKey(Arbitrum.USDT_OFT, PEER, LZ_ETHEREUM_EID, Arbitrum.USDT0)
         );
 
-        // LayerZero set receipient
+        // LayerZero set recipient
         controller.layerZero_setRecipient(LZ_ETHEREUM_EID, ETHEREUM_SPUSDT_ALM_PROXY);
     }
 

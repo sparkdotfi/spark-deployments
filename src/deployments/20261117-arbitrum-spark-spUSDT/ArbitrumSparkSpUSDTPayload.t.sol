@@ -104,8 +104,8 @@ abstract contract ArbitrumSparkSpUSDTPayloadTestBase is Test {
     address internal constant SPARK_PLANNER_HOT_WALLET        = Arbitrum.PLANNER_WALLET;
     address internal constant SPARK_LOW_THRESHOLD_MULTISIG    = Arbitrum.SPARK_LOW_THRESHOLD_MULTISIG;
     address internal constant SPARK_MEDIUM_THRESHOLD_MULTISIG = Arbitrum.SPARK_MEDIUM_THRESHOLD_MULTISIG;
-    address internal constant SOTER_LABS_REVOKER_MULTISIG     = address(4); // TODO: Replace with the final address
-    address internal constant SOTER_LABS_GRANTOR_MULTISIG     = address(5); // TODO: Replace with the final address
+    address internal constant SOTER_REVOKER_MULTISIG     = Arbitrum.SOTER_REVOKER_MULTISIG;
+    address internal constant SOTER_GRANTOR_MULTISIG     = Arbitrum.SOTER_GRANTOR_MULTISIG;
 
     bytes32 internal constant ETHEREUM_SPUSDT_ALM_PROXY = bytes32(uint256(uint160(address(6))));
 
@@ -324,9 +324,9 @@ contract ArbitrumSparkSpUSDTPayloadTest_AdministeredAgents is ArbitrumSparkSpUSD
     function test_sparkAgent_roles() external view {
         address[] memory revokers = new address[](2);
         revokers[0] = SPARK_LOW_THRESHOLD_MULTISIG;
-        revokers[1] = SOTER_LABS_REVOKER_MULTISIG;
+        revokers[1] = SOTER_REVOKER_MULTISIG;
 
-        _assertAgent(sparkAgent, plannerAgent, revokers, SOTER_LABS_GRANTOR_MULTISIG);
+        _assertAgent(sparkAgent, plannerAgent, revokers, SOTER_GRANTOR_MULTISIG);
     }
 
     function test_agents_onlySparkExecutorAdministers() external {
@@ -372,14 +372,10 @@ contract ArbitrumSparkSpUSDTPayloadTest_SpUSDTPAU is ArbitrumSparkSpUSDTPayloadT
     }
 
     function test_spUSDTPAU_integrations() external view {
-        bytes32[] memory ids = new bytes32[](7);
-        ids[0] = "AAVE_FACET";
-        ids[1] = "CCTP_FACET";
-        ids[2] = "ERC4626_FACET";
-        ids[3] = "LAYER_ZERO_FACET";
-        ids[4] = "SPARK_VAULT_FACET";
-        ids[5] = "TRANSFER_ASSET_FACET";
-        ids[6] = "UNISWAP_V4_FACET";
+        bytes32[] memory ids = new bytes32[](3);
+        ids[0] = "LAYER_ZERO_FACET";
+        ids[1] = "SPARK_VAULT_FACET";
+        ids[2] = "TRANSFER_ASSET_FACET";
 
         _assertIntegrations(spUSDTPAU_controller, ids);
     }
