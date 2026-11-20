@@ -2,13 +2,20 @@
 pragma solidity ^0.8.34;
 
 import { Ethereum as SkyEthereum } from "../../../lib/sky-pau-registry/src/Ethereum.sol";
-import { Ethereum }                from "../../../lib/spark-address-registry/src/Ethereum.sol";
+
+import { Arbitrum } from "../../../lib/spark-address-registry/src/Arbitrum.sol";
+import { Ethereum } from "../../../lib/spark-address-registry/src/Ethereum.sol";
+import { XLayer }   from "../../../lib/spark-address-registry/src/XLayer.sol";
 
 import { IALMProxy }       from "../../../lib/diamond-pau/src/interfaces/IALMProxy.sol";
 import { IPAUFactory }     from "../../../lib/diamond-pau/src/interfaces/IPAUFactory.sol";
 import { IController }     from "../../../lib/diamond-pau/src/interfaces/IController.sol";
 import { IRateLimits }     from "../../../lib/diamond-pau/src/interfaces/IRateLimits.sol";
 import { IAccessControls } from "../../../lib/diamond-pau/src/interfaces/IAccessControls.sol";
+
+import { IAaveFacet }      from "../../../lib/diamond-pau/src/facets/aave/IAaveFacet.sol";
+import { ILayerZeroFacet } from "../../../lib/diamond-pau/src/facets/layer-zero/ILayerZeroFacet.sol";
+import { ISwapAssetFacet } from "../../../lib/diamond-pau/src/facets/swap-asset/ISwapAssetFacet.sol";
 
 import { IERC4626Controller }       from "../../../lib/diamond-pau/src/facets/erc4626/IERC4626Controller.sol";
 import { ISparkVaultController }    from "../../../lib/diamond-pau/src/facets/spark-vault/ISparkVaultController.sol";
@@ -67,8 +74,8 @@ contract EthereumSparkSpUSDTPayload {
     address internal constant SPARK_PLANNER_HOT_WALLET        = Ethereum.PLANNER_WALLET;
     address internal constant SPARK_LOW_THRESHOLD_MULTISIG    = Ethereum.SPARK_LOW_THRESHOLD_MULTISIG;
     address internal constant SPARK_MEDIUM_THRESHOLD_MULTISIG = Ethereum.SPARK_MEDIUM_THRESHOLD_MULTISIG;
-    address internal constant SOTER_LABS_REVOKER_MULTISIG     = address(4); // TODO: Replace with the final address
-    address internal constant SOTER_LABS_GRANTOR_MULTISIG     = address(5); // TODO: Replace with the final address
+    address internal constant SOTER_REVOKER_MULTISIG          = Ethereum.SOTER_REVOKER_MULTISIG;
+    address internal constant SOTER_GRANTOR_MULTISIG          = Ethereum.SOTER_GRANTOR_MULTISIG;
 
     // SLL PAU Configuration
     bytes32 internal constant SPARK_SLL_PAU_ACCESS_CONTROLS_SALT = "SPARK_SLL_PAU_ACCESS_CONTROLS";
@@ -77,6 +84,14 @@ contract EthereumSparkSpUSDTPayload {
 
     // spUSDT PAU Configuration
     bytes32 internal constant SPARK_SPUSDT_PAU_SALT = "SPARK_SPUSDT_PAU";
+
+    address internal constant AAVE_CORE_POOL = 0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2;
+
+    uint32 internal constant LZ_EID_ARBITRUM = 30110;
+    uint32 internal constant LZ_EID_XLAYER   = 30274;
+
+    bytes32 internal constant LZ_PEER_ARBITRUM = bytes32(uint256(uint160(Arbitrum.USDT_OFT)));
+    bytes32 internal constant LZ_PEER_XLAYER   = bytes32(uint256(uint160(XLayer.USDT0_OFT)));
 
     /**********************************************************************************************/
     /*** Deployed contracts                                                                     ***/
@@ -182,14 +197,14 @@ contract EthereumSparkSpUSDTPayload {
         sparkAgent.addAdmin(Ethereum.SPARK_PROXY);
         sparkAgent.addActor(_report.plannerAgent);
         sparkAgent.addRevoker(SPARK_LOW_THRESHOLD_MULTISIG);
-        sparkAgent.addRevoker(SOTER_LABS_REVOKER_MULTISIG);
-        sparkAgent.addGrantor(SOTER_LABS_GRANTOR_MULTISIG);
+        sparkAgent.addRevoker(SOTER_REVOKER_MULTISIG);
+        sparkAgent.addGrantor(SOTER_GRANTOR_MULTISIG);
 
         sllAgent.addAdmin(Ethereum.SPARK_PROXY);
         sllAgent.addActor(_report.plannerAgent);
         sllAgent.addRevoker(SPARK_LOW_THRESHOLD_MULTISIG);
-        sllAgent.addRevoker(SOTER_LABS_REVOKER_MULTISIG);
-        sllAgent.addGrantor(SOTER_LABS_GRANTOR_MULTISIG);
+        sllAgent.addRevoker(SOTER_REVOKER_MULTISIG);
+        sllAgent.addGrantor(SOTER_GRANTOR_MULTISIG);
     }
 
     function _configureSLLPAU() internal {
@@ -200,6 +215,28 @@ contract EthereumSparkSpUSDTPayload {
 
         rateLimits.grantRole(rateLimits.CONTROLLER(), _report.sllPAU_controller);
         accessControls.grantRole(ALLOCATOR_ROLE,      _report.sllAgent);
+
+        // SwapAsset initiate swap rate limits
+        rateLimits.setRateLimitData(
+            ISwapAssetFacet(Ethereum.SWAP_ASSET_FACET).getInitiateSwapRateLimitKey(
+                Ethereum.USDS,
+                _report.spUSDTPAU_almProxy,
+                _report.spUSDTPAU_controller,
+                Ethereum.USDT
+            ),
+            100_000_000e18,
+            uint256(500_000_000e18) / 1 days
+        );
+        rateLimits.setRateLimitData(
+            ISwapAssetFacet(Ethereum.SWAP_ASSET_FACET).getInitiateSwapRateLimitKey(
+                Ethereum.USDT,
+                _report.spUSDTPAU_almProxy,
+                _report.spUSDTPAU_controller,
+                Ethereum.USDS
+            ),
+            100_000_000e6,
+            uint256(500_000_000e6) / 1 days
+        );
     }
 
     function _configureSpUSDTPAU() internal {
@@ -214,7 +251,7 @@ contract EthereumSparkSpUSDTPayload {
         rateLimits.grantRole(rateLimits.CONTROLLER(), _report.spUSDTPAU_controller);
         accessControls.grantRole(ALLOCATOR_ROLE,      _report.sparkAgent);
 
-        // Onboaring facets
+        // Onboarding facets
 
         bytes32[] memory integrationIds = new bytes32[](3);
         integrationIds[0] = "ERC4626_FACET";
@@ -240,6 +277,56 @@ contract EthereumSparkSpUSDTPayload {
             controller.transferAsset_getTransferRateLimitKey(Ethereum.USDT, Ethereum.SPARK_VAULT_V2_SPUSDT)
         );
 
+        // LayerZero rate limits
+        rateLimits.setRateLimitData(
+            ILayerZeroFacet(Ethereum.LAYERZERO_FACET).getTransferRateLimitKey(
+                Ethereum.USDT_OFT,
+                LZ_PEER_ARBITRUM,
+                LZ_EID_ARBITRUM,
+                Ethereum.USDT
+            ),
+            5_000_000e6,
+            uint256(50_000_000e6) / 1 days
+        );
+        rateLimits.setRateLimitData(
+            ILayerZeroFacet(Ethereum.LAYERZERO_FACET).getTransferRateLimitKey(
+                Ethereum.USDT_OFT,
+                LZ_PEER_XLAYER,
+                LZ_EID_XLAYER,
+                Ethereum.USDT
+            ),
+            5_000_000e6,
+            uint256(100_000_000e6) / 1 days
+        );
+
+        // SwapAsset complete swap rate limits
+        rateLimits.setRateLimitData(
+            ISwapAssetFacet(Ethereum.SWAP_ASSET_FACET).getCompleteSwapRateLimitKey(Ethereum.USDT, Ethereum.ALM_PROXY, Ethereum.USDS),
+            100_000_000e6,
+            uint256(1_000_000_000e6) / 1 days
+        );
+        rateLimits.setRateLimitData(
+            ISwapAssetFacet(Ethereum.SWAP_ASSET_FACET).getCompleteSwapRateLimitKey(Ethereum.USDS, Ethereum.ALM_PROXY, Ethereum.USDT),
+            100_000_000e18,
+            uint256(1_000_000_000e18) / 1 days
+        );
+
+        // Aave rate limits
+        rateLimits.setRateLimitData(
+            IAaveFacet(Ethereum.AAVE_FACET).getDepositRateLimitKey({
+                aToken          : Ethereum.ATOKEN_CORE_USDT,
+                pool            : AAVE_CORE_POOL,
+                underlyingAsset : Ethereum.USDT
+            }),
+            100_000_000e6,
+            500_000_000e6 / uint256(1 days)
+        );
+        rateLimits.setUnlimitedRateLimitData(
+            IAaveFacet(Ethereum.AAVE_FACET).getWithdrawRateLimitKey({
+                aToken : Ethereum.ATOKEN_CORE_USDT,
+                pool   : AAVE_CORE_POOL
+            })
+        );
     }
 
     function _handoffAdministeredAgents() internal {
