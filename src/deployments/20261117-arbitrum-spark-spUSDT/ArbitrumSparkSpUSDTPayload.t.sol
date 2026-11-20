@@ -107,7 +107,7 @@ abstract contract ArbitrumSparkSpUSDTPayloadTestBase is Test {
     address internal constant SOTER_REVOKER_MULTISIG     = Arbitrum.SOTER_REVOKER_MULTISIG;
     address internal constant SOTER_GRANTOR_MULTISIG     = Arbitrum.SOTER_GRANTOR_MULTISIG;
 
-    bytes32 internal constant ETHEREUM_SPUSDT_ALM_PROXY = bytes32(uint256(uint160(0x82895D4a273C544d93C75880a2EbFC1117aA3643)));
+    bytes32 internal constant ETHEREUM_SPUSDT_ALM_PROXY = bytes32(uint256(uint160(0x2ceF3e65858EE6706FAd66550876412d08342BC8)));
 
     address internal deploymentPayload;
 
