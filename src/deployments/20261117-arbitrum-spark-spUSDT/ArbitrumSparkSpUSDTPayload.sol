@@ -60,19 +60,12 @@ contract ArbitrumSparkSpUSDTPayload {
     bytes32 internal constant DEFAULT_ADMIN_ROLE = 0x00;
     bytes32 internal constant ALLOCATOR_ROLE     = keccak256("ALLOCATOR_ROLE");
 
-    bytes32 internal constant SPARK_PLANNER_ADMINISTERED_AGENT_SALT = keccak256("spark.arb.plannerAdministeredAgent");
-    bytes32 internal constant SPARK_ADMINISTERED_AGENT_SALT         = keccak256("spark.arb.administeredAgent");
-
-    address internal constant SPARK_PLANNER_HOT_WALLET        = Arbitrum.PLANNER_WALLET;
-    address internal constant SPARK_ALM_RELAYER_MULTISIG      = Arbitrum.ALM_RELAYER_MULTISIG;
-    address internal constant SPARK_LOW_THRESHOLD_MULTISIG    = Arbitrum.SPARK_LOW_THRESHOLD_MULTISIG;
-    address internal constant SPARK_MEDIUM_THRESHOLD_MULTISIG = Arbitrum.SPARK_MEDIUM_THRESHOLD_MULTISIG;
-    address internal constant SOTER_REVOKER_MULTISIG          = Arbitrum.SOTER_REVOKER_MULTISIG;
-    address internal constant SOTER_GRANTOR_MULTISIG          = Arbitrum.SOTER_GRANTOR_MULTISIG;
+    bytes32 internal constant PLANNER_ADMINISTERED_AGENT_SALT = keccak256("spark.arb.plannerAdministeredAgent");
+    bytes32 internal constant SPARK_ADMINISTERED_AGENT_SALT   = keccak256("spark.arb.sparkAdministeredAgent");
 
     // spUSDT PAU Configuration
 
-    bytes32 internal constant SPARK_SPUSDT_PAU_SALT = keccak256("spark.arb.spUSDTPAU");
+    bytes32 internal constant SPUSDT_PAU_SALT = keccak256("spark.arb.spUSDTPAU");
 
     // LayerZero configuration
 
@@ -80,7 +73,7 @@ contract ArbitrumSparkSpUSDTPayload {
 
     bytes32 internal constant PEER = bytes32(uint256(uint160(Ethereum.USDT_OFT)));
 
-    bytes32 internal constant ETHEREUM_SPUSDT_ALM_PROXY = bytes32(uint256(uint160(0x52ac12A52B3B7d494816A0E5e1B3A1A7FF4c3a68)));
+    bytes32 internal constant ETHEREUM_SPUSDT_ALM_PROXY = bytes32(uint256(uint160(0x9174264F5E0dFDa8C7a096E11a740b7b613Cf7C4)));
 
     /**********************************************************************************************/
     /*** Deployed contracts                                                                     ***/
@@ -108,14 +101,14 @@ contract ArbitrumSparkSpUSDTPayload {
 
         IAdministeredAgentFactory administeredAgentFactory = IAdministeredAgentFactory(Arbitrum.SPARK_ADMINISTERED_AGENT_FACTORY);
 
-        _report.plannerAgent = administeredAgentFactory.deploy(address(this), SPARK_PLANNER_ADMINISTERED_AGENT_SALT);
+        _report.plannerAgent = administeredAgentFactory.deploy(address(this), PLANNER_ADMINISTERED_AGENT_SALT);
         _report.sparkAgent   = administeredAgentFactory.deploy(address(this), SPARK_ADMINISTERED_AGENT_SALT);
 
         // Step 2: Deploy spUSDT PAU
 
         IPAUFactory pauFactory = IPAUFactory(Arbitrum.SPARK_PAU_FACTORY);
 
-        _report.spUSDTPAU_controller     = pauFactory.deployPAU(address(this), SPARK_SPUSDT_PAU_SALT);
+        _report.spUSDTPAU_controller     = pauFactory.deployPAU(address(this), SPUSDT_PAU_SALT);
         _report.spUSDTPAU_accessControls = IController(_report.spUSDTPAU_controller).accessControls();
         _report.spUSDTPAU_almProxy       = IController(_report.spUSDTPAU_controller).proxy();
         _report.spUSDTPAU_rateLimits     = IController(_report.spUSDTPAU_controller).rateLimits();
@@ -150,16 +143,16 @@ contract ArbitrumSparkSpUSDTPayload {
         IAdministeredAgent sparkAgent = IAdministeredAgent(_report.sparkAgent);
 
         plannerAgent.addAdmin(Arbitrum.SPARK_EXECUTOR);
-        plannerAgent.addActor(SPARK_PLANNER_HOT_WALLET);
-        plannerAgent.addActor(SPARK_ALM_RELAYER_MULTISIG);
-        plannerAgent.addRevoker(SPARK_LOW_THRESHOLD_MULTISIG);
-        plannerAgent.addGrantor(SPARK_MEDIUM_THRESHOLD_MULTISIG);
+        plannerAgent.addActor(Arbitrum.PLANNER_WALLET);
+        plannerAgent.addActor(Arbitrum.ALM_RELAYER_MULTISIG);
+        plannerAgent.addRevoker(Arbitrum.SPARK_LOW_THRESHOLD_MULTISIG);
+        plannerAgent.addGrantor(Arbitrum.SPARK_MEDIUM_THRESHOLD_MULTISIG);
 
         sparkAgent.addAdmin(Arbitrum.SPARK_EXECUTOR);
         sparkAgent.addActor(_report.plannerAgent);
-        sparkAgent.addRevoker(SPARK_LOW_THRESHOLD_MULTISIG);
-        sparkAgent.addRevoker(SOTER_REVOKER_MULTISIG);
-        sparkAgent.addGrantor(SOTER_GRANTOR_MULTISIG);
+        sparkAgent.addRevoker(Arbitrum.SPARK_LOW_THRESHOLD_MULTISIG);
+        sparkAgent.addRevoker(Arbitrum.SOTER_REVOKER_MULTISIG);
+        sparkAgent.addGrantor(Arbitrum.SOTER_GRANTOR_MULTISIG);
     }
 
     function _configureSpUSDTPAU() internal {

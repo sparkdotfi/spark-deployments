@@ -66,26 +66,19 @@ contract EthereumSparkSpUSDTPayload {
     bytes32 internal constant DEFAULT_ADMIN_ROLE = 0x00;
     bytes32 internal constant ALLOCATOR_ROLE     = keccak256("ALLOCATOR_ROLE");
 
-    bytes32 internal constant SPARK_PLANNER_ADMINISTERED_AGENT_SALT = keccak256("spark.eth.plannerAdministeredAgent");
-    bytes32 internal constant SPARK_ADMINISTERED_AGENT_SALT         = keccak256("spark.eth.administeredAgent");
-    bytes32 internal constant SPARK_SLL_ADMINISTERED_AGENT_SALT     = keccak256("spark.eth.sllAdministeredAgent");
-
-    address internal constant SPARK_PLANNER_HOT_WALLET        = Ethereum.PLANNER_WALLET;
-    address internal constant SPARK_ALM_RELAYER_MULTISIG      = Ethereum.ALM_RELAYER_MULTISIG;
-    address internal constant SPARK_LOW_THRESHOLD_MULTISIG    = Ethereum.SPARK_LOW_THRESHOLD_MULTISIG;
-    address internal constant SPARK_MEDIUM_THRESHOLD_MULTISIG = Ethereum.SPARK_MEDIUM_THRESHOLD_MULTISIG;
-    address internal constant SOTER_REVOKER_MULTISIG          = Ethereum.SOTER_REVOKER_MULTISIG;
-    address internal constant SOTER_GRANTOR_MULTISIG          = Ethereum.SOTER_GRANTOR_MULTISIG;
+    bytes32 internal constant PLANNER_ADMINISTERED_AGENT_SALT = keccak256("spark.eth.plannerAdministeredAgent");
+    bytes32 internal constant SPARK_ADMINISTERED_AGENT_SALT   = keccak256("spark.eth.sparkAdministeredAgent");
+    bytes32 internal constant SLL_ADMINISTERED_AGENT_SALT     = keccak256("spark.eth.sllAdministeredAgent");
 
     // SLL PAU Configuration
 
-    bytes32 internal constant SPARK_SLL_PAU_ACCESS_CONTROLS_SALT = keccak256("spark.eth.sllPAUAccessControls");
-    bytes32 internal constant SPARK_SLL_PAU_RATE_LIMITS_SALT     = keccak256("spark.eth.sllPAURateLimits");
-    bytes32 internal constant SPARK_SLL_PAU_CONTROLLER_SALT      = keccak256("spark.eth.sllPAUController");
+    bytes32 internal constant SLL_PAU_ACCESS_CONTROLS_SALT = keccak256("spark.eth.sllPAUAccessControls");
+    bytes32 internal constant SLL_PAU_RATE_LIMITS_SALT     = keccak256("spark.eth.sllPAURateLimits");
+    bytes32 internal constant SLL_PAU_CONTROLLER_SALT      = keccak256("spark.eth.sllPAUController");
 
     // spUSDT PAU Configuration
 
-    bytes32 internal constant SPARK_SPUSDT_PAU_SALT = keccak256("spark.eth.spUSDTPAU");
+    bytes32 internal constant SPUSDT_PAU_SALT = keccak256("spark.eth.spUSDTPAU");
 
     uint32 internal constant LZ_EID_ARBITRUM = 30110;
     uint32 internal constant LZ_EID_XLAYER   = 30274;
@@ -123,9 +116,9 @@ contract EthereumSparkSpUSDTPayload {
 
         IAdministeredAgentFactory administeredAgentFactory = IAdministeredAgentFactory(Ethereum.SPARK_ADMINISTERED_AGENT_FACTORY);
 
-        _report.plannerAgent = administeredAgentFactory.deploy(address(this), SPARK_PLANNER_ADMINISTERED_AGENT_SALT);
+        _report.plannerAgent = administeredAgentFactory.deploy(address(this), PLANNER_ADMINISTERED_AGENT_SALT);
         _report.sparkAgent   = administeredAgentFactory.deploy(address(this), SPARK_ADMINISTERED_AGENT_SALT);
-        _report.sllAgent     = administeredAgentFactory.deploy(address(this), SPARK_SLL_ADMINISTERED_AGENT_SALT);
+        _report.sllAgent     = administeredAgentFactory.deploy(address(this), SLL_ADMINISTERED_AGENT_SALT);
 
         // Step 2: Deploy SLL PAU from the Sky PAUFactory, so its Controller is wired to the Sky Beacon
 
@@ -133,24 +126,24 @@ contract EthereumSparkSpUSDTPayload {
 
         _report.sllPAU_accessControls = skyPAUFactory.deployAccessControls(
             address(this),
-            SPARK_SLL_PAU_ACCESS_CONTROLS_SALT
+            SLL_PAU_ACCESS_CONTROLS_SALT
         );
         _report.sllPAU_rateLimits = skyPAUFactory.deployRateLimits(
             address(this),
-            SPARK_SLL_PAU_RATE_LIMITS_SALT
+            SLL_PAU_RATE_LIMITS_SALT
         );
         _report.sllPAU_controller = skyPAUFactory.deployController(
             _report.sllPAU_accessControls,
             Ethereum.ALM_PROXY,
             _report.sllPAU_rateLimits,
-            SPARK_SLL_PAU_CONTROLLER_SALT
+            SLL_PAU_CONTROLLER_SALT
         );
 
         // Step 3: Deploy spUSDT PAU from the Spark PAUFactory, so its Controller is wired to the Spark Beacon
 
         IPAUFactory sparkPAUFactory = IPAUFactory(Ethereum.SPARK_PAU_FACTORY);
 
-        _report.spUSDTPAU_controller     = sparkPAUFactory.deployPAU(address(this), SPARK_SPUSDT_PAU_SALT);
+        _report.spUSDTPAU_controller     = sparkPAUFactory.deployPAU(address(this), SPUSDT_PAU_SALT);
         _report.spUSDTPAU_accessControls = IController(_report.spUSDTPAU_controller).accessControls();
         _report.spUSDTPAU_almProxy       = IController(_report.spUSDTPAU_controller).proxy();
         _report.spUSDTPAU_rateLimits     = IController(_report.spUSDTPAU_controller).rateLimits();
@@ -190,22 +183,22 @@ contract EthereumSparkSpUSDTPayload {
         IAdministeredAgent sllAgent     = IAdministeredAgent(_report.sllAgent);
 
         plannerAgent.addAdmin(Ethereum.SPARK_PROXY);
-        plannerAgent.addActor(SPARK_PLANNER_HOT_WALLET);
-        plannerAgent.addActor(SPARK_ALM_RELAYER_MULTISIG);
-        plannerAgent.addRevoker(SPARK_LOW_THRESHOLD_MULTISIG);
-        plannerAgent.addGrantor(SPARK_MEDIUM_THRESHOLD_MULTISIG);
+        plannerAgent.addActor(Ethereum.PLANNER_WALLET);
+        plannerAgent.addActor(Ethereum.ALM_RELAYER_MULTISIG);
+        plannerAgent.addRevoker(Ethereum.SPARK_LOW_THRESHOLD_MULTISIG);
+        plannerAgent.addGrantor(Ethereum.SPARK_MEDIUM_THRESHOLD_MULTISIG);
 
         sparkAgent.addAdmin(Ethereum.SPARK_PROXY);
         sparkAgent.addActor(_report.plannerAgent);
-        sparkAgent.addRevoker(SPARK_LOW_THRESHOLD_MULTISIG);
-        sparkAgent.addRevoker(SOTER_REVOKER_MULTISIG);
-        sparkAgent.addGrantor(SOTER_GRANTOR_MULTISIG);
+        sparkAgent.addRevoker(Ethereum.SPARK_LOW_THRESHOLD_MULTISIG);
+        sparkAgent.addRevoker(Ethereum.SOTER_REVOKER_MULTISIG);
+        sparkAgent.addGrantor(Ethereum.SOTER_GRANTOR_MULTISIG);
 
         sllAgent.addAdmin(Ethereum.SPARK_PROXY);
         sllAgent.addActor(_report.plannerAgent);
-        sllAgent.addRevoker(SPARK_LOW_THRESHOLD_MULTISIG);
-        sllAgent.addRevoker(SOTER_REVOKER_MULTISIG);
-        sllAgent.addGrantor(SOTER_GRANTOR_MULTISIG);
+        sllAgent.addRevoker(Ethereum.SPARK_LOW_THRESHOLD_MULTISIG);
+        sllAgent.addRevoker(Ethereum.SOTER_REVOKER_MULTISIG);
+        sllAgent.addGrantor(Ethereum.SOTER_GRANTOR_MULTISIG);
     }
 
     function _configureSLLPAU() internal {
@@ -262,16 +255,8 @@ contract EthereumSparkSpUSDTPayload {
         controller.updateIntegrations(integrationIds);
 
         // ERC4626 rate limits configuration
-        rateLimits.setRateLimitData(
-            controller.erc4626_getDepositRateLimitKey(Ethereum.SUSDS, Ethereum.USDS),
-            50_000_000e18,
-            uint256(50_000_000e18) / 1 days
-        );
-        rateLimits.setRateLimitData(
-            controller.erc4626_getWithdrawRateLimitKey(Ethereum.SUSDS),
-            50_000_000e18,
-            uint256(200_000_000e18) / 1 days
-        );
+        rateLimits.setUnlimitedRateLimitData(controller.erc4626_getDepositRateLimitKey(Ethereum.SUSDS, Ethereum.USDS));
+        rateLimits.setUnlimitedRateLimitData(controller.erc4626_getWithdrawRateLimitKey(Ethereum.SUSDS));
 
         // Set max exchange rate
         controller.erc4626_setMaxExchangeRate(Ethereum.SUSDS, 1, 1e40);

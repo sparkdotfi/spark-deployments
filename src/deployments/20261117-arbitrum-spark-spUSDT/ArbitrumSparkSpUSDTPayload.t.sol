@@ -101,14 +101,7 @@ abstract contract ArbitrumSparkSpUSDTPayloadTestBase is Test {
 
     bytes32 internal constant PEER = bytes32(uint256(uint160(Ethereum.USDT_OFT)));
 
-    address internal constant SPARK_PLANNER_HOT_WALLET        = Arbitrum.PLANNER_WALLET;
-    address internal constant SPARK_ALM_RELAYER_MULTISIG      = Arbitrum.ALM_RELAYER_MULTISIG;
-    address internal constant SPARK_LOW_THRESHOLD_MULTISIG    = Arbitrum.SPARK_LOW_THRESHOLD_MULTISIG;
-    address internal constant SPARK_MEDIUM_THRESHOLD_MULTISIG = Arbitrum.SPARK_MEDIUM_THRESHOLD_MULTISIG;
-    address internal constant SOTER_REVOKER_MULTISIG     = Arbitrum.SOTER_REVOKER_MULTISIG;
-    address internal constant SOTER_GRANTOR_MULTISIG     = Arbitrum.SOTER_GRANTOR_MULTISIG;
-
-    bytes32 internal constant ETHEREUM_SPUSDT_ALM_PROXY = bytes32(uint256(uint160(0x52ac12A52B3B7d494816A0E5e1B3A1A7FF4c3a68)));
+    bytes32 internal constant ETHEREUM_SPUSDT_ALM_PROXY = bytes32(uint256(uint160(0x9174264F5E0dFDa8C7a096E11a740b7b613Cf7C4)));
 
     address internal deploymentPayload;
 
@@ -320,13 +313,13 @@ contract ArbitrumSparkSpUSDTPayloadTest_AdministeredAgents is ArbitrumSparkSpUSD
 
     function test_plannerAgent_roles() external view {
         address[] memory actors = new address[](2);
-        actors[0] = SPARK_PLANNER_HOT_WALLET;
-        actors[1] = SPARK_ALM_RELAYER_MULTISIG;
+        actors[0] = Arbitrum.PLANNER_WALLET;
+        actors[1] = Arbitrum.ALM_RELAYER_MULTISIG;
 
         address[] memory revokers = new address[](1);
-        revokers[0] = SPARK_LOW_THRESHOLD_MULTISIG;
+        revokers[0] = Arbitrum.SPARK_LOW_THRESHOLD_MULTISIG;
 
-        _assertAgent(plannerAgent, actors, revokers, SPARK_MEDIUM_THRESHOLD_MULTISIG);
+        _assertAgent(plannerAgent, actors, revokers, Arbitrum.SPARK_MEDIUM_THRESHOLD_MULTISIG);
     }
 
     function test_sparkAgent_roles() external view {
@@ -334,10 +327,10 @@ contract ArbitrumSparkSpUSDTPayloadTest_AdministeredAgents is ArbitrumSparkSpUSD
         actors[0] = plannerAgent;
 
         address[] memory revokers = new address[](2);
-        revokers[0] = SPARK_LOW_THRESHOLD_MULTISIG;
-        revokers[1] = SOTER_REVOKER_MULTISIG;
+        revokers[0] = Arbitrum.SPARK_LOW_THRESHOLD_MULTISIG;
+        revokers[1] = Arbitrum.SOTER_REVOKER_MULTISIG;
 
-        _assertAgent(sparkAgent, actors, revokers, SOTER_GRANTOR_MULTISIG);
+        _assertAgent(sparkAgent, actors, revokers, Arbitrum.SOTER_GRANTOR_MULTISIG);
     }
 
     function test_agents_onlySparkExecutorAdministers() external {
@@ -456,21 +449,21 @@ contract ArbitrumSparkSpUSDTPayloadTest_E2E is ArbitrumSparkSpUSDTPayloadTestBas
         );
 
         // Not an allocator of the spUSDT PAU.
-        vm.prank(SPARK_PLANNER_HOT_WALLET);
+        vm.prank(Arbitrum.PLANNER_WALLET);
         vm.expectRevert(
             abi.encodeWithSelector(
-                IFacet.AccessControlUnauthorizedAccount.selector, SPARK_PLANNER_HOT_WALLET, ALLOCATOR_ROLE
+                IFacet.AccessControlUnauthorizedAccount.selector, Arbitrum.PLANNER_WALLET, ALLOCATOR_ROLE
             )
         );
         ITransferAssetController(spUSDTPAU_controller).transferAsset_transfer(USDT0, SPUSDT, 1_000_000e6);
 
         // Not an actor of sparkAgent.
-        vm.prank(SPARK_PLANNER_HOT_WALLET);
+        vm.prank(Arbitrum.PLANNER_WALLET);
         vm.expectRevert(IAdministeredAgentLike.NotActor.selector);
         IAdministeredAgentLike(sparkAgent).call(spUSDTPAU_controller, transferCall);
 
         // plannerAgent is not an allocator of the spUSDT PAU either.
-        vm.prank(SPARK_PLANNER_HOT_WALLET);
+        vm.prank(Arbitrum.PLANNER_WALLET);
         vm.expectRevert(
             abi.encodeWithSelector(IFacet.AccessControlUnauthorizedAccount.selector, plannerAgent, ALLOCATOR_ROLE)
         );
@@ -556,7 +549,7 @@ contract ArbitrumSparkSpUSDTPayloadTest_E2E is ArbitrumSparkSpUSDTPayloadTestBas
         uint256 totalSupply = usdt0.totalSupply();
 
         // Overpay so the sweep of excess ETH to the ALMProxy is exercised.
-        vm.deal(SPARK_PLANNER_HOT_WALLET, fee.nativeFee + 1 ether);
+        vm.deal(Arbitrum.PLANNER_WALLET, fee.nativeFee + 1 ether);
 
         assertEq(spUSDTPAU_controller.balance, 0);
         assertEq(spUSDTPAU_almProxy.balance,   0);
@@ -599,7 +592,7 @@ contract ArbitrumSparkSpUSDTPayloadTest_E2E is ArbitrumSparkSpUSDTPayloadTestBas
     {
         bytes memory agentCall = abi.encodeCall(IAdministeredAgentLike.call, (spUSDTPAU_controller, controllerCall));
 
-        vm.prank(SPARK_PLANNER_HOT_WALLET);
+        vm.prank(Arbitrum.PLANNER_WALLET);
         bytes memory result = IAdministeredAgentLike(plannerAgent).call{ value: value }(sparkAgent, agentCall);
 
         // The planner agent returns the spark agent's return data, which wraps the Controller's.
