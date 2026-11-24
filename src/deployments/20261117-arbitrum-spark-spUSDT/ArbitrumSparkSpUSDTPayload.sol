@@ -64,6 +64,7 @@ contract ArbitrumSparkSpUSDTPayload {
     bytes32 internal constant SPARK_ADMINISTERED_AGENT_SALT         = keccak256("spark.arb.administeredAgent");
 
     address internal constant SPARK_PLANNER_HOT_WALLET        = Arbitrum.PLANNER_WALLET;
+    address internal constant SPARK_ALM_RELAYER_MULTISIG      = Arbitrum.ALM_RELAYER_MULTISIG;
     address internal constant SPARK_LOW_THRESHOLD_MULTISIG    = Arbitrum.SPARK_LOW_THRESHOLD_MULTISIG;
     address internal constant SPARK_MEDIUM_THRESHOLD_MULTISIG = Arbitrum.SPARK_MEDIUM_THRESHOLD_MULTISIG;
     address internal constant SOTER_REVOKER_MULTISIG          = Arbitrum.SOTER_REVOKER_MULTISIG;
@@ -150,6 +151,7 @@ contract ArbitrumSparkSpUSDTPayload {
 
         plannerAgent.addAdmin(Arbitrum.SPARK_EXECUTOR);
         plannerAgent.addActor(SPARK_PLANNER_HOT_WALLET);
+        plannerAgent.addActor(SPARK_ALM_RELAYER_MULTISIG);
         plannerAgent.addRevoker(SPARK_LOW_THRESHOLD_MULTISIG);
         plannerAgent.addGrantor(SPARK_MEDIUM_THRESHOLD_MULTISIG);
 

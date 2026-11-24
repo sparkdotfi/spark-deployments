@@ -71,6 +71,7 @@ contract EthereumSparkSpUSDTPayload {
     bytes32 internal constant SPARK_SLL_ADMINISTERED_AGENT_SALT     = keccak256("spark.eth.sllAdministeredAgent");
 
     address internal constant SPARK_PLANNER_HOT_WALLET        = Ethereum.PLANNER_WALLET;
+    address internal constant SPARK_ALM_RELAYER_MULTISIG      = Ethereum.ALM_RELAYER_MULTISIG;
     address internal constant SPARK_LOW_THRESHOLD_MULTISIG    = Ethereum.SPARK_LOW_THRESHOLD_MULTISIG;
     address internal constant SPARK_MEDIUM_THRESHOLD_MULTISIG = Ethereum.SPARK_MEDIUM_THRESHOLD_MULTISIG;
     address internal constant SOTER_REVOKER_MULTISIG          = Ethereum.SOTER_REVOKER_MULTISIG;
@@ -190,6 +191,7 @@ contract EthereumSparkSpUSDTPayload {
 
         plannerAgent.addAdmin(Ethereum.SPARK_PROXY);
         plannerAgent.addActor(SPARK_PLANNER_HOT_WALLET);
+        plannerAgent.addActor(SPARK_ALM_RELAYER_MULTISIG);
         plannerAgent.addRevoker(SPARK_LOW_THRESHOLD_MULTISIG);
         plannerAgent.addGrantor(SPARK_MEDIUM_THRESHOLD_MULTISIG);
 

@@ -102,6 +102,7 @@ abstract contract ArbitrumSparkSpUSDTPayloadTestBase is Test {
     bytes32 internal constant PEER = bytes32(uint256(uint160(Ethereum.USDT_OFT)));
 
     address internal constant SPARK_PLANNER_HOT_WALLET        = Arbitrum.PLANNER_WALLET;
+    address internal constant SPARK_ALM_RELAYER_MULTISIG      = Arbitrum.ALM_RELAYER_MULTISIG;
     address internal constant SPARK_LOW_THRESHOLD_MULTISIG    = Arbitrum.SPARK_LOW_THRESHOLD_MULTISIG;
     address internal constant SPARK_MEDIUM_THRESHOLD_MULTISIG = Arbitrum.SPARK_MEDIUM_THRESHOLD_MULTISIG;
     address internal constant SOTER_REVOKER_MULTISIG     = Arbitrum.SOTER_REVOKER_MULTISIG;
@@ -236,7 +237,7 @@ abstract contract ArbitrumSparkSpUSDTPayloadTestBase is Test {
         assertEq(IAccessControls(target).getRoleMember(role, 0),   account);
     }
 
-    function _assertAgent(address agent, address actor, address[] memory revokers, address grantor)
+    function _assertAgent(address agent, address[] memory actors, address[] memory revokers, address grantor)
         internal view
     {
         IAdministeredAgentLike agent_ = IAdministeredAgentLike(agent);
@@ -244,8 +245,11 @@ abstract contract ArbitrumSparkSpUSDTPayloadTestBase is Test {
         assertEq(agent_.adminCount(),                        1);
         assertEq(agent_.getIsAdmin(Arbitrum.SPARK_EXECUTOR), true);
 
-        assertEq(agent_.actorCount(),      1);
-        assertEq(agent_.getIsActor(actor), true);
+        assertEq(agent_.actorCount(), actors.length);
+
+        for (uint256 i; i < actors.length; ++i) {
+            assertEq(agent_.getIsActor(actors[i]), true);
+        }
 
         assertEq(agent_.revokerCount(), revokers.length);
 
@@ -315,18 +319,25 @@ contract ArbitrumSparkSpUSDTPayloadTest_Payload is ArbitrumSparkSpUSDTPayloadTes
 contract ArbitrumSparkSpUSDTPayloadTest_AdministeredAgents is ArbitrumSparkSpUSDTPayloadTestBase {
 
     function test_plannerAgent_roles() external view {
+        address[] memory actors = new address[](2);
+        actors[0] = SPARK_PLANNER_HOT_WALLET;
+        actors[1] = SPARK_ALM_RELAYER_MULTISIG;
+
         address[] memory revokers = new address[](1);
         revokers[0] = SPARK_LOW_THRESHOLD_MULTISIG;
 
-        _assertAgent(plannerAgent, SPARK_PLANNER_HOT_WALLET, revokers, SPARK_MEDIUM_THRESHOLD_MULTISIG);
+        _assertAgent(plannerAgent, actors, revokers, SPARK_MEDIUM_THRESHOLD_MULTISIG);
     }
 
     function test_sparkAgent_roles() external view {
+        address[] memory actors = new address[](1);
+        actors[0] = plannerAgent;
+
         address[] memory revokers = new address[](2);
         revokers[0] = SPARK_LOW_THRESHOLD_MULTISIG;
         revokers[1] = SOTER_REVOKER_MULTISIG;
 
-        _assertAgent(sparkAgent, plannerAgent, revokers, SOTER_GRANTOR_MULTISIG);
+        _assertAgent(sparkAgent, actors, revokers, SOTER_GRANTOR_MULTISIG);
     }
 
     function test_agents_onlySparkExecutorAdministers() external {
