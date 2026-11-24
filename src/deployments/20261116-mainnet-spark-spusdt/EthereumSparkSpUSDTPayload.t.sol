@@ -184,7 +184,7 @@ abstract contract EthereumSparkSpUSDTPayloadTestBase is Test {
     }
 
     function _getBlock() internal pure returns (uint256) {
-        return 26434139; // Nov-17-2026 10:22:35 AM +UTC
+        return 26483696; // Nov-24-2026 08:03:35 AM +UTC
     }
 
     /**********************************************************************************************/

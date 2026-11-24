@@ -96,8 +96,8 @@ abstract contract E2ETestBase is Test {
     bytes32 internal constant ETH_PAYLOAD_SALT = keccak256("spark.eth.spUSDTPAUPayload");
     bytes32 internal constant ARB_PAYLOAD_SALT = keccak256("spark.arb.spUSDTPAUPayload");
 
-    address internal constant EXPECTED_ETH_SPUSDT_PAYLOAD = 0x29f66f804F614938c6647BC01C450ef00cC86947;
-    address internal constant EXPECTED_ARB_SPUSDT_PAYLOAD = 0x2C779C7cDD7Bfe6FA363E7ABB5608d23Bc989F1A;
+    address internal constant EXPECTED_ETH_SPUSDT_PAYLOAD = 0xFB2D9f9de0409bf1A0b234be00f63fEEa5C82774;
+    address internal constant EXPECTED_ARB_SPUSDT_PAYLOAD = 0x10c78c15e4dB6234728cFB564014960B5Be6E82c;
 
     address internal constant SPARK_PLANNER_HOT_WALLET = Ethereum.PLANNER_WALLET;
 
@@ -177,8 +177,8 @@ abstract contract E2ETestBase is Test {
     /**********************************************************************************************/
 
     function setUp() public virtual {
-        mainnet  = getChain("mainnet").createFork(26436548);       // Nov-17-2026 06:26:11 PM +UTC
-        arbitrum = getChain("arbitrum_one").createFork(525109927); // Nov-17-2026 06:23:08 PM +UTC
+        mainnet  = getChain("mainnet").createFork(26483696);       // Nov-24-2026 08:03:35 AM +UTC
+        arbitrum = getChain("arbitrum_one").createFork(527055621); // Nov-24-2026 07:50:26 AM +UTC
 
         // Step 1: Deploy the Ethereum payload
 
@@ -461,10 +461,10 @@ contract E2ETest is E2ETestBase {
         mainnet.selectFork();
 
         assertEq(usdt.balanceOf(user),               1_000_000e6);
-        assertEq(usdt.balanceOf(address(ethSpUSDT)), 66_176_872.510365e6);
+        assertEq(usdt.balanceOf(address(ethSpUSDT)), 80_411_526.179333e6);
 
-        assertEq(ethSpUSDT.totalAssets(),   295_356_260.639578e6);
-        assertEq(ethSpUSDT.totalSupply(),   284_798_803.357315e6);
+        assertEq(ethSpUSDT.totalAssets(),   274_809_487.118084e6);
+        assertEq(ethSpUSDT.totalSupply(),   264_788_091.008152e6);
         assertEq(ethSpUSDT.balanceOf(user), 0);
 
         vm.startPrank(user);
@@ -473,21 +473,21 @@ contract E2ETest is E2ETestBase {
         vm.stopPrank();
 
         assertEq(usdt.balanceOf(user),               0);
-        assertEq(usdt.balanceOf(address(ethSpUSDT)), 67_176_872.510365e6);
+        assertEq(usdt.balanceOf(address(ethSpUSDT)), 81_411_526.179333e6);
 
-        assertEq(ethSpUSDT.totalAssets(),   296_356_260.639577e6);
-        assertEq(ethSpUSDT.totalSupply(),   285_763_058.534234e6);
-        assertEq(ethSpUSDT.balanceOf(user), 964_255.176919e6);
+        assertEq(ethSpUSDT.totalAssets(),   275_809_487.118083e6);
+        assertEq(ethSpUSDT.totalSupply(),   265_751_624.304563e6);
+        assertEq(ethSpUSDT.balanceOf(user), 963_533.296411e6);
 
         // Step 2: User deposits 1_000_000e6 USDT to the Arbitrum spUSDT vault
 
         arbitrum.selectFork();
 
         assertEq(usdt0.balanceOf(user),               1_000_000e6);
-        assertEq(usdt0.balanceOf(address(arbSpUSDT)), 1_053_682.977823e6);
+        assertEq(usdt0.balanceOf(address(arbSpUSDT)), 1_053_061.636344e6);
 
-        assertEq(arbSpUSDT.totalAssets(),   1_054_892.406793e6);
-        assertEq(arbSpUSDT.totalSupply(),   1_042_872.419867e6);
+        assertEq(arbSpUSDT.totalAssets(),   1_055_060.177745e6);
+        assertEq(arbSpUSDT.totalSupply(),   1_042_258.252025e6);
         assertEq(arbSpUSDT.balanceOf(user), 0);
 
         vm.startPrank(user);
@@ -496,19 +496,19 @@ contract E2ETest is E2ETestBase {
         vm.stopPrank();
 
         assertEq(usdt0.balanceOf(user),               0);
-        assertEq(usdt0.balanceOf(address(arbSpUSDT)), 2_053_682.977823e6);
+        assertEq(usdt0.balanceOf(address(arbSpUSDT)), 2_053_061.636344e6);
 
-        assertEq(arbSpUSDT.totalAssets(),   2_054_892.406793e6);
-        assertEq(arbSpUSDT.totalSupply(),   2_031_477.905271e6);
-        assertEq(arbSpUSDT.balanceOf(user), 988_605.485404e6);
+        assertEq(arbSpUSDT.totalAssets(),   2_055_060.177744e6);
+        assertEq(arbSpUSDT.totalSupply(),   2_030_124.417396e6);
+        assertEq(arbSpUSDT.balanceOf(user), 987_866.165371e6);
 
         // Step 3: ethSparkAgent (ethPlannerAgent) takes 1_000_000e6 USDT out of Ethereum spUSDT vault
 
         mainnet.selectFork();
 
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethTakeKey), type(uint256).max);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethTakeKey), 10_000_000e6);
 
-        assertEq(usdt.balanceOf(address(ethSpUSDT)),    67_176_872.510365e6);
+        assertEq(usdt.balanceOf(address(ethSpUSDT)),    81_411_526.179333e6);
         assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 100e6);
 
         vm.prank(SPARK_PLANNER_HOT_WALLET);
@@ -523,22 +523,22 @@ contract E2ETest is E2ETestBase {
             )
         );
 
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethTakeKey), type(uint256).max);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethTakeKey), 10_000_000e6 - 1_000_000e6);
 
-        assertEq(usdt.balanceOf(address(ethSpUSDT)),    66_176_872.510365e6);
+        assertEq(usdt.balanceOf(address(ethSpUSDT)),    80_411_526.179333e6);
         assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 1_000_100e6);
 
         // Taking moves idle liquidity out, it does not change the vault's accounting.
-        assertEq(ethSpUSDT.totalAssets(), 296_356_260.639577e6);
-        assertEq(ethSpUSDT.totalSupply(), 285_763_058.534234e6);
+        assertEq(ethSpUSDT.totalAssets(), 275_809_487.118083e6);
+        assertEq(ethSpUSDT.totalSupply(), 265_751_624.304563e6);
 
         // Step 4: arbSparkAgent (arbPlannerAgent) takes 1_000_000e6 USDT out of Arbitrum spUSDT vault
 
         arbitrum.selectFork();
 
-        assertEq(arbSpUSDTPAU_rateLimits.getCurrentRateLimit(arbTakeKey), type(uint256).max);
+        assertEq(arbSpUSDTPAU_rateLimits.getCurrentRateLimit(arbTakeKey), 10_000_000e6);
 
-        assertEq(usdt0.balanceOf(address(arbSpUSDT)),    2_053_682.977823e6);
+        assertEq(usdt0.balanceOf(address(arbSpUSDT)),    2_053_061.636344e6);
         assertEq(usdt0.balanceOf(arbSpUSDTPAU_almProxy), 0);
 
         vm.prank(SPARK_PLANNER_HOT_WALLET);
@@ -553,20 +553,20 @@ contract E2ETest is E2ETestBase {
             )
         );
 
-        assertEq(arbSpUSDTPAU_rateLimits.getCurrentRateLimit(arbTakeKey), type(uint256).max);
+        assertEq(arbSpUSDTPAU_rateLimits.getCurrentRateLimit(arbTakeKey), 10_000_000e6 - 1_000_000e6);
 
-        assertEq(usdt0.balanceOf(address(arbSpUSDT)),    1_053_682.977823e6);
+        assertEq(usdt0.balanceOf(address(arbSpUSDT)),    1_053_061.636344e6);
         assertEq(usdt0.balanceOf(arbSpUSDTPAU_almProxy), 1_000_000e6);
 
-        assertEq(arbSpUSDT.totalAssets(), 2_054_892.406793e6);
-        assertEq(arbSpUSDT.totalSupply(), 2_031_477.905271e6);
+        assertEq(arbSpUSDT.totalAssets(), 2_055_060.177744e6);
+        assertEq(arbSpUSDT.totalSupply(), 2_030_124.417396e6);
 
         // Step 5: arbSparkAgent (arbPlannerAgent) bridges 1_000_000e6 USDT to Ethereum spUSDT PAU using LayerZeroFacet
 
-        assertEq(arbSpUSDTPAU_rateLimits.getCurrentRateLimit(arbLayerZeroKey), type(uint256).max);
+        assertEq(arbSpUSDTPAU_rateLimits.getCurrentRateLimit(arbLayerZeroKey), 5_000_000e6);
 
         assertEq(usdt0.balanceOf(arbSpUSDTPAU_almProxy), 1_000_000e6);
-        assertEq(usdt0.totalSupply(),                    895_730_435.701070e6);
+        assertEq(usdt0.totalSupply(),                    1_121_489_900.354792e6);
 
         ( , ILayerZeroFacet.MessagingFee memory arbFee ) = arbSpUSDTPAU_controller
             .layerZero_quoteTransfer(Arbitrum.USDT_OFT, 1_000_000e6, LZ_ETHEREUM_EID);
@@ -586,33 +586,33 @@ contract E2ETest is E2ETestBase {
             )
         );
 
-        assertEq(arbSpUSDTPAU_rateLimits.getCurrentRateLimit(arbLayerZeroKey), type(uint256).max);
+        assertEq(arbSpUSDTPAU_rateLimits.getCurrentRateLimit(arbLayerZeroKey), 5_000_000e6 - 1_000_000e6);
 
         // USDT0 is burned on Arbitrum.
         assertEq(usdt0.balanceOf(arbSpUSDTPAU_almProxy), 0);
-        assertEq(usdt0.totalSupply(),                    894_730_435.701070e6);
+        assertEq(usdt0.totalSupply(),                    1_120_489_900.354792e6);
 
         // Step 6: Relay the message to Ethereum
 
         mainnet.selectFork();
 
         assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 1_000_100e6);
-        assertEq(usdt.balanceOf(Ethereum.USDT_OFT),     3_669_379_157.913483e6);
+        assertEq(usdt.balanceOf(Ethereum.USDT_OFT),     3_748_659_043.709524e6);
 
         lzBridge.relayMessagesToDestination(true, Arbitrum.USDT_OFT, Ethereum.USDT_OFT);
 
         // USDT is released from the OFT adapter on Ethereum.
         assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 2_000_100e6);
-        assertEq(usdt.balanceOf(Ethereum.USDT_OFT),     3_668_379_157.913483e6);
+        assertEq(usdt.balanceOf(Ethereum.USDT_OFT),     3_747_659_043.709524e6);
 
         // Step 7: ethSllAgent (ethPlannerAgent) initiates a swap on the SLL PAU of 2_000_000e18 USDS for
         //         2_000_000e6 USDT, completed by the spUSDT PAU using SwapAssetFacet
 
-        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDSKey), 100_000_000e18);
-        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDTKey), 100_000_000e6);
+        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDSKey), 10_000_000e18);
+        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDTKey), 10_000_000e6);
 
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDTKey), 100_000_000e6);
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDSKey), 100_000_000e18);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDTKey), 10_000_000e6);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDSKey), 10_000_000e18);
 
         assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 2_000_100e6);
         assertEq(usds.balanceOf(ethSpUSDTPAU_almProxy), 0);
@@ -634,12 +634,12 @@ contract E2ETest is E2ETestBase {
             )
         );
 
-        // The reverse direction keys increase, already at max so they stay at max.
-        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDSKey), 98_000_000e18);
-        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDTKey), 100_000_000e6);
+        // The reverse direction keys increase
+        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDSKey), 8_000_000e18);
+        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDTKey), 10_000_000e6);
 
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDTKey), 98_000_000e6);
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDSKey), 100_000_000e18);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDTKey), 8_000_000e6);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDSKey), 10_000_000e18);
 
         assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 100e6);
         assertEq(usds.balanceOf(ethSpUSDTPAU_almProxy), 2_000_000e18);
@@ -648,8 +648,8 @@ contract E2ETest is E2ETestBase {
 
         // Step 8: ethSparkAgent (ethPlannerAgent) deposits 2_000_000e18 USDS to sUSDS using ERC4626Facet
 
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethERC4626DepositKey),  type(uint256).max);
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethERC4626WithdrawKey), type(uint256).max);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethERC4626DepositKey),  50_000_000e18);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethERC4626WithdrawKey), 50_000_000e18);
 
         assertEq(usds.balanceOf(ethSpUSDTPAU_almProxy),  2_000_000e18);
         assertEq(susds.balanceOf(ethSpUSDTPAU_almProxy), 0);
@@ -663,19 +663,19 @@ contract E2ETest is E2ETestBase {
                     address(ethSpUSDTPAU_controller),
                     abi.encodeCall(
                         IERC4626Controller.erc4626_deposit,
-                        (Ethereum.SUSDS, 2_000_000e18, 1_791_020.347540853759825191e18)
+                        (Ethereum.SUSDS, 2_000_000e18, 1_789_818.827676846735622777e18)
                     )
                 )
             )
         );
 
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethERC4626DepositKey),  type(uint256).max);
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethERC4626WithdrawKey), type(uint256).max);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethERC4626DepositKey),  50_000_000e18 - 2_000_000e18);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethERC4626WithdrawKey), 50_000_000e18);
 
         assertEq(usds.balanceOf(ethSpUSDTPAU_almProxy),  0);
-        assertEq(susds.balanceOf(ethSpUSDTPAU_almProxy), 1_791_020.347540853759825191e18);
+        assertEq(susds.balanceOf(ethSpUSDTPAU_almProxy), 1_789_818.827676846735622777e18);
 
-        assertEq(susds.convertToAssets(1_791_020.347540853759825191e18), 2_000_000e18 - 1);  // Rounding
+        assertEq(susds.convertToAssets(1_789_818.827676846735622777e18), 2_000_000e18 - 2);  // Rounding
 
         // Step 9: skip 1 day on Ethereum and Arbitrum to let the sUSDS and spUSDT on Arbitrum accrue yield
 
@@ -684,24 +684,24 @@ contract E2ETest is E2ETestBase {
         arbitrum.selectFork();
         skip(1 days);
 
-        assertEq(arbSpUSDT.convertToAssets(988_605.485404e6), 1_000_114.038487e6); // 114.038487e6 is the interest owed to the user on Arbitrum
+        assertEq(arbSpUSDT.convertToAssets(987_866.165371e6), 1_000_114.038487e6); // 114.038487e6 is the interest owed to the user on Arbitrum
 
         mainnet.selectFork();
 
-        assertEq(susds.convertToAssets(1_791_020.347540853759825191e18), 2_000_204.370905504494858258e18); // 204.370905504494858258e18 is the interest accrued
-        assertEq(ethSpUSDT.convertToAssets(964_255.176919e6),            1_000_114.038486e6);              // 114.038486e6 is the interest owed to the user on Ethereum
+        assertEq(susds.convertToAssets(1_789_818.827676846735622777e18), 2_000_204.370905504494858258e18); // 204.370905504494858258e18 is the interest accrued
+        assertEq(ethSpUSDT.convertToAssets(963_533.296411e6),            1_000_114.038486e6);              // 114.038486e6 is the interest owed to the user on Ethereum
 
         // Rate limits fully recharged
-        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDSKey),    100_000_000e18);
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDTKey), 100_000_000e6);
+        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDSKey),    10_000_000e18);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDTKey), 10_000_000e6);
 
         // Step 10: ethSparkAgent (ethPlannerAgent) withdraws 2_000_000e18 + interest USDS from sUSDS using ERC4626Facet
 
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethERC4626DepositKey),  type(uint256).max);
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethERC4626WithdrawKey), type(uint256).max);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethERC4626DepositKey),  50_000_000e18);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethERC4626WithdrawKey), 50_000_000e18);
 
         assertEq(usds.balanceOf(ethSpUSDTPAU_almProxy),  0);
-        assertEq(susds.balanceOf(ethSpUSDTPAU_almProxy), 1_791_020.347540853759825191e18);
+        assertEq(susds.balanceOf(ethSpUSDTPAU_almProxy), 1_789_818.827676846735622777e18);
 
         vm.prank(SPARK_PLANNER_HOT_WALLET);
         ethPlannerAgent.call(
@@ -712,14 +712,14 @@ contract E2ETest is E2ETestBase {
                     address(ethSpUSDTPAU_controller),
                     abi.encodeCall(
                         IERC4626Controller.erc4626_redeem,
-                        (Ethereum.SUSDS, 1_791_020.347540853759825191e18, 2_000_204.370905504494858258e18)
+                        (Ethereum.SUSDS, 1_789_818.827676846735622777e18, 2_000_204.370905504494858258e18)
                     )
                 )
             )
         );
 
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethERC4626DepositKey),  type(uint256).max);
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethERC4626WithdrawKey), type(uint256).max);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethERC4626DepositKey),  50_000_000e18);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethERC4626WithdrawKey), 50_000_000e18 - 2_000_204.370905504494858258e18);
 
         assertEq(usds.balanceOf(ethSpUSDTPAU_almProxy),  2_000_204.370905504494858258e18);
         assertEq(susds.balanceOf(ethSpUSDTPAU_almProxy), 0);
@@ -727,11 +727,11 @@ contract E2ETest is E2ETestBase {
         // Step 11: ethSllAgent (ethPlannerAgent) initiates a swap on the SLL PAU of 2_000_000e6 USDT + interest
         //          for the USDS + interest, completed by the spUSDT PAU using SwapAssetFacet
 
-        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDSKey), 100_000_000e18);
-        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDTKey), 100_000_000e6);
+        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDSKey), 10_000_000e18);
+        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDTKey), 10_000_000e6);
 
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDTKey), 100_000_000e6);
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDSKey), 100_000_000e18);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDTKey), 10_000_000e6);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDSKey), 10_000_000e18);
 
         assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 100e6);
         assertEq(usds.balanceOf(ethSpUSDTPAU_almProxy), 2_000_204.370905504494858258e18);
@@ -755,12 +755,12 @@ contract E2ETest is E2ETestBase {
             )
         );
 
-        // The reverse direction keys increase, already at max so they stay at max.
-        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDSKey), 100_000_000e18);
-        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDTKey), 97_999_795.629095e6);
+        // The reverse direction keys increase
+        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDSKey), 10_000_000e18);
+        assertEq(ethSllPAU_rateLimits.getCurrentRateLimit(sllSwapInitiateUSDTKey), 7_999_795.629095e6);
 
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDTKey), 100_000_000e6);
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDSKey), 97_999_795.629095e18);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDTKey), 10_000_000e6);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethSwapCompleteUSDSKey), 7_999_795.629095e18);
 
         assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 2_000_304.370905e6);
         assertEq(usds.balanceOf(ethSpUSDTPAU_almProxy), 0.000000504494858258e18);
@@ -769,10 +769,10 @@ contract E2ETest is E2ETestBase {
 
         // Step 12: ethSparkAgent (ethPlannerAgent) transfers 1_000_000e6 USDT + interest to Ethereum spUSDT vault using TransferAssetFacet
 
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethTransferKey), type(uint256).max);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethTransferKey), 10_000_000e6);
 
         assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 2_000_304.370905e6);
-        assertEq(usdt.balanceOf(address(ethSpUSDT)),    66_176_872.510365e6);
+        assertEq(usdt.balanceOf(address(ethSpUSDT)),    80_411_526.179333e6);
 
         vm.prank(SPARK_PLANNER_HOT_WALLET);
         ethPlannerAgent.call(
@@ -789,17 +789,17 @@ contract E2ETest is E2ETestBase {
             )
         );
 
-        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethTransferKey), type(uint256).max);
+        assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethTransferKey), 10_000_000e6 - 1_000_114.038486e6);
 
         assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 1_000_190.332419e6);
-        assertEq(usdt.balanceOf(address(ethSpUSDT)),    67_176_986.548851e6);
+        assertEq(usdt.balanceOf(address(ethSpUSDT)),    81_411_640.217819e6);
 
         // Step 13: ethSparkAgent (ethPlannerAgent) bridges 1_000_000e6 USDT + interest to Arbitrum spUSDT PAU using LayerZeroFacet
 
         assertEq(ethSpUSDTPAU_rateLimits.getCurrentRateLimit(ethLayerZeroKey), 5_000_000e6);
 
         assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 1_000_190.332419e6);
-        assertEq(usdt.balanceOf(Ethereum.USDT_OFT),     3_668_379_157.913483e6);
+        assertEq(usdt.balanceOf(Ethereum.USDT_OFT),     3_747_659_043.709524e6);
 
         ( , ILayerZeroFacet.MessagingFee memory ethFee ) = ethSpUSDTPAU_controller
             .layerZero_quoteTransfer(Ethereum.USDT_OFT, 1_000_114.038487e6, LZ_ARBITRUM_EID);
@@ -823,27 +823,27 @@ contract E2ETest is E2ETestBase {
 
         // USDT is locked in the OFT adapter on Ethereum.
         assertEq(usdt.balanceOf(ethSpUSDTPAU_almProxy), 76.293932e6);
-        assertEq(usdt.balanceOf(Ethereum.USDT_OFT),     3_669_379_271.951970e6);
+        assertEq(usdt.balanceOf(Ethereum.USDT_OFT),     3_748_659_157.748011e6);
 
         // Step 14: Relay the message to Arbitrum
 
         arbitrum.selectFork();
 
         assertEq(usdt0.balanceOf(arbSpUSDTPAU_almProxy), 0);
-        assertEq(usdt0.totalSupply(),                    894_730_435.701070e6);
+        assertEq(usdt0.totalSupply(),                    1_120_489_900.354792e6);
 
         lzBridge.relayMessagesToSource(true, Ethereum.USDT_OFT, Arbitrum.USDT_OFT);
 
         // USDT0 is minted on Arbitrum.
         assertEq(usdt0.balanceOf(arbSpUSDTPAU_almProxy), 1_000_114.038487e6);
-        assertEq(usdt0.totalSupply(),                    895_730_549.739557e6);
+        assertEq(usdt0.totalSupply(),                    1_121_490_014.393279e6);
 
         // Step 15: arbSparkAgent (arbPlannerAgent) transfers 1_000_000e6 USDT + interest to Arbitrum spUSDT vault using TransferAssetFacet
 
-        assertEq(arbSpUSDTPAU_rateLimits.getCurrentRateLimit(arbTransferKey), type(uint256).max);
+        assertEq(arbSpUSDTPAU_rateLimits.getCurrentRateLimit(arbTransferKey), 10_000_000e6);
 
         assertEq(usdt0.balanceOf(arbSpUSDTPAU_almProxy), 1_000_114.038487e6);
-        assertEq(usdt0.balanceOf(address(arbSpUSDT)),    1_053_682.977823e6);
+        assertEq(usdt0.balanceOf(address(arbSpUSDT)),    1_053_061.636344e6);
 
         vm.prank(SPARK_PLANNER_HOT_WALLET);
         arbPlannerAgent.call(
@@ -860,30 +860,30 @@ contract E2ETest is E2ETestBase {
             )
         );
 
-        assertEq(arbSpUSDTPAU_rateLimits.getCurrentRateLimit(arbTransferKey), type(uint256).max);
+        assertEq(arbSpUSDTPAU_rateLimits.getCurrentRateLimit(arbTransferKey), 10_000_000e6 - 1_000_114.038487e6);
 
         assertEq(usdt0.balanceOf(arbSpUSDTPAU_almProxy), 0);
-        assertEq(usdt0.balanceOf(address(arbSpUSDT)),    2_053_797.016310e6);
+        assertEq(usdt0.balanceOf(address(arbSpUSDT)),    2_053_175.674831e6);
 
         // Step 16: User redeems their Ethereum spUSDT deposit and receives the 1_000_000e6 USDT + interest
 
         mainnet.selectFork();
 
         assertEq(usdt.balanceOf(user),               0);
-        assertEq(usdt.balanceOf(address(ethSpUSDT)), 67_176_986.548851e6);
+        assertEq(usdt.balanceOf(address(ethSpUSDT)), 81_411_640.217819e6);
 
-        assertEq(ethSpUSDT.totalAssets(),   296_390_056.659257e6);
-        assertEq(ethSpUSDT.totalSupply(),   285_763_058.534234e6);
-        assertEq(ethSpUSDT.balanceOf(user), 964_255.176919e6);
+        assertEq(ethSpUSDT.totalAssets(),   275_840_940.014790e6);
+        assertEq(ethSpUSDT.totalSupply(),   265_751_624.304563e6);
+        assertEq(ethSpUSDT.balanceOf(user), 963_533.296411e6);
 
         vm.prank(user);
-        ethSpUSDT.redeem(964_255.176919e6, user, user);
+        ethSpUSDT.redeem(963_533.296411e6, user, user);
 
         assertEq(usdt.balanceOf(user),               1_000_114.038486e6);
-        assertEq(usdt.balanceOf(address(ethSpUSDT)), 66_176_872.510365e6);
+        assertEq(usdt.balanceOf(address(ethSpUSDT)), 80_411_526.179333e6);
 
-        assertEq(ethSpUSDT.totalAssets(),   295_389_942.620770e6);
-        assertEq(ethSpUSDT.totalSupply(),   284_798_803.357315e6);
+        assertEq(ethSpUSDT.totalAssets(),   274_840_825.976304e6);
+        assertEq(ethSpUSDT.totalSupply(),   264_788_091.008152e6);
         assertEq(ethSpUSDT.balanceOf(user), 0);
 
         // Step 17: User redeems their Arbitrum spUSDT deposit and receives the 1_000_000e6 USDT + interest
@@ -891,20 +891,20 @@ contract E2ETest is E2ETestBase {
         arbitrum.selectFork();
 
         assertEq(usdt0.balanceOf(user),               0);
-        assertEq(usdt0.balanceOf(address(arbSpUSDT)), 2_053_797.016310e6);
+        assertEq(usdt0.balanceOf(address(arbSpUSDT)), 2_053_175.674831e6);
 
-        assertEq(arbSpUSDT.totalAssets(),   2_055_126.743614e6);
-        assertEq(arbSpUSDT.totalSupply(),   2_031_477.905271e6);
-        assertEq(arbSpUSDT.balanceOf(user), 988_605.485404e6);
+        assertEq(arbSpUSDT.totalAssets(),   2_055_294.533698e6);
+        assertEq(arbSpUSDT.totalSupply(),   2_030_124.417396e6);
+        assertEq(arbSpUSDT.balanceOf(user), 987_866.165371e6);
 
         vm.prank(user);
-        arbSpUSDT.redeem(988_605.485404e6, user, user);
+        arbSpUSDT.redeem(987_866.165371e6, user, user);
 
         assertEq(usdt0.balanceOf(user),               1_000_114.038487e6);
-        assertEq(usdt0.balanceOf(address(arbSpUSDT)), 1_053_682.977823e6);
+        assertEq(usdt0.balanceOf(address(arbSpUSDT)), 1_053_061.636344e6);
 
-        assertEq(arbSpUSDT.totalAssets(),   1_055_012.705127e6);
-        assertEq(arbSpUSDT.totalSupply(),   1_042_872.419867e6);
+        assertEq(arbSpUSDT.totalAssets(),   1_055_180.495211e6);
+        assertEq(arbSpUSDT.totalSupply(),   1_042_258.252025e6);
         assertEq(arbSpUSDT.balanceOf(user), 0);
 
         // The unused buffer and the USDS swap dust on Ethereum, nothing on Arbitrum.

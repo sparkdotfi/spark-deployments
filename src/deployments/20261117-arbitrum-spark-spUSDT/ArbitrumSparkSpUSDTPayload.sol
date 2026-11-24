@@ -80,7 +80,7 @@ contract ArbitrumSparkSpUSDTPayload {
 
     bytes32 internal constant PEER = bytes32(uint256(uint160(Ethereum.USDT_OFT)));
 
-    bytes32 internal constant ETHEREUM_SPUSDT_ALM_PROXY = bytes32(uint256(uint160(0x2ceF3e65858EE6706FAd66550876412d08342BC8)));
+    bytes32 internal constant ETHEREUM_SPUSDT_ALM_PROXY = bytes32(uint256(uint160(0x52ac12A52B3B7d494816A0E5e1B3A1A7FF4c3a68)));
 
     /**********************************************************************************************/
     /*** Deployed contracts                                                                     ***/

@@ -108,7 +108,7 @@ abstract contract ArbitrumSparkSpUSDTPayloadTestBase is Test {
     address internal constant SOTER_REVOKER_MULTISIG     = Arbitrum.SOTER_REVOKER_MULTISIG;
     address internal constant SOTER_GRANTOR_MULTISIG     = Arbitrum.SOTER_GRANTOR_MULTISIG;
 
-    bytes32 internal constant ETHEREUM_SPUSDT_ALM_PROXY = bytes32(uint256(uint160(0x2ceF3e65858EE6706FAd66550876412d08342BC8)));
+    bytes32 internal constant ETHEREUM_SPUSDT_ALM_PROXY = bytes32(uint256(uint160(0x52ac12A52B3B7d494816A0E5e1B3A1A7FF4c3a68)));
 
     address internal deploymentPayload;
 
@@ -152,7 +152,7 @@ abstract contract ArbitrumSparkSpUSDTPayloadTestBase is Test {
     }
 
     function _getBlock() internal pure returns (uint256) {
-        return 525309300; // Nov-18-2026 11:27:43 AM +UTC
+        return 527058331; // Nov-24-2026 08:03:30 AM +UTC
     }
 
     /**********************************************************************************************/
