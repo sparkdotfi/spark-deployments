@@ -262,7 +262,6 @@ contract EthereumSparkSpUSDTPayload {
         controller.erc4626_setMaxExchangeRate(Ethereum.SUSDS, 1, 1e40);
 
         // SparkVault rate limits configuration
-
         rateLimits.setRateLimitData(
             controller.sparkVault_getTakeRateLimitKey(Ethereum.SPARK_VAULT_V2_SPUSDT),
             10_000_000e6,
@@ -270,7 +269,6 @@ contract EthereumSparkSpUSDTPayload {
         );
 
         // TransferAsset rate limits configuration
-
         rateLimits.setRateLimitData(
             controller.transferAsset_getTransferRateLimitKey(Ethereum.USDT, Ethereum.SPARK_VAULT_V2_SPUSDT),
             10_000_000e6,
@@ -313,9 +311,9 @@ contract EthereumSparkSpUSDTPayload {
     }
 
     function _handoffAdministeredAgents() internal {
-        IAdministeredAgent plannerAgent     = IAdministeredAgent(_report.plannerAgent);
-        IAdministeredAgent sparkAgent       = IAdministeredAgent(_report.sparkAgent);
-        IAdministeredAgent sllAgent         = IAdministeredAgent(_report.sllAgent);
+        IAdministeredAgent plannerAgent = IAdministeredAgent(_report.plannerAgent);
+        IAdministeredAgent sparkAgent   = IAdministeredAgent(_report.sparkAgent);
+        IAdministeredAgent sllAgent     = IAdministeredAgent(_report.sllAgent);
 
         plannerAgent.removeAdmin(address(this));
 

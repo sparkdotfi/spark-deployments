@@ -179,7 +179,6 @@ contract ArbitrumSparkSpUSDTPayload {
         controller.updateIntegrations(integrationIds);
 
         // SparkVault rate limits configuration
-
         rateLimits.setRateLimitData(
             controller.sparkVault_getTakeRateLimitKey(Arbitrum.SPARK_VAULT_V2_SPUSDT),
             10_000_000e6,
@@ -187,7 +186,6 @@ contract ArbitrumSparkSpUSDTPayload {
         );
 
         // TransferAsset rate limits configuration
-
         rateLimits.setRateLimitData(
             controller.transferAsset_getTransferRateLimitKey(Arbitrum.USDT0, Arbitrum.SPARK_VAULT_V2_SPUSDT),
             10_000_000e6,
@@ -195,7 +193,6 @@ contract ArbitrumSparkSpUSDTPayload {
         );
 
         // LayerZero rate limits configuration
-
         rateLimits.setRateLimitData(
             controller.layerZero_getTransferRateLimitKey(Arbitrum.USDT_OFT, PEER, LZ_ETHEREUM_EID, Arbitrum.USDT0),
             5_000_000e6,
