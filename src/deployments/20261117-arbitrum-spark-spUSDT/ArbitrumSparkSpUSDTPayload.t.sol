@@ -371,8 +371,13 @@ contract ArbitrumSparkSpUSDTPayloadTest_SpUSDTPAU is ArbitrumSparkSpUSDTPayloadT
         _assertOnlyMember(spUSDTPAU_rateLimits, CONTROLLER_ROLE,    spUSDTPAU_controller);
 
         assertEq(IAccessControls(spUSDTPAU_accessControls).getRoleAdmin(DEFAULT_ADMIN_ROLE), DEFAULT_ADMIN_ROLE);
-        assertEq(IAccessControls(spUSDTPAU_almProxy).getRoleAdmin(DEFAULT_ADMIN_ROLE),       DEFAULT_ADMIN_ROLE);
-        assertEq(IAccessControls(spUSDTPAU_rateLimits).getRoleAdmin(DEFAULT_ADMIN_ROLE),     DEFAULT_ADMIN_ROLE);
+        assertEq(IAccessControls(spUSDTPAU_accessControls).getRoleAdmin(ALLOCATOR_ROLE),     DEFAULT_ADMIN_ROLE);
+
+        assertEq(IAccessControls(spUSDTPAU_almProxy).getRoleAdmin(DEFAULT_ADMIN_ROLE), DEFAULT_ADMIN_ROLE);
+        assertEq(IAccessControls(spUSDTPAU_almProxy).getRoleAdmin(CONTROLLER_ROLE),    DEFAULT_ADMIN_ROLE);
+
+        assertEq(IAccessControls(spUSDTPAU_rateLimits).getRoleAdmin(DEFAULT_ADMIN_ROLE), DEFAULT_ADMIN_ROLE);
+        assertEq(IAccessControls(spUSDTPAU_rateLimits).getRoleAdmin(CONTROLLER_ROLE),    DEFAULT_ADMIN_ROLE);
     }
 
     function test_spUSDTPAU_integrations() external view {

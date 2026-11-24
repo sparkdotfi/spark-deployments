@@ -457,7 +457,10 @@ contract EthereumSparkSpUSDTPayloadTest_SLLPAU is EthereumSparkSpUSDTPayloadTest
         _assertOnlyMember(sllPAU_rateLimits, CONTROLLER_ROLE,    sllPAU_controller);
 
         assertEq(IAccessControls(sllPAU_accessControls).getRoleAdmin(DEFAULT_ADMIN_ROLE), DEFAULT_ADMIN_ROLE);
-        assertEq(IAccessControls(sllPAU_rateLimits).getRoleAdmin(DEFAULT_ADMIN_ROLE),     DEFAULT_ADMIN_ROLE);
+        assertEq(IAccessControls(sllPAU_accessControls).getRoleAdmin(ALLOCATOR_ROLE),     DEFAULT_ADMIN_ROLE);
+
+        assertEq(IAccessControls(sllPAU_rateLimits).getRoleAdmin(DEFAULT_ADMIN_ROLE), DEFAULT_ADMIN_ROLE);
+        assertEq(IAccessControls(sllPAU_rateLimits).getRoleAdmin(CONTROLLER_ROLE),    DEFAULT_ADMIN_ROLE);
     }
 
     function test_sllPAU_integrations() external view {
@@ -500,8 +503,13 @@ contract EthereumSparkSpUSDTPayloadTest_SpUSDTPAU is EthereumSparkSpUSDTPayloadT
         _assertOnlyMember(spUSDTPAU_rateLimits, CONTROLLER_ROLE,    spUSDTPAU_controller);
 
         assertEq(IAccessControls(spUSDTPAU_accessControls).getRoleAdmin(DEFAULT_ADMIN_ROLE), DEFAULT_ADMIN_ROLE);
-        assertEq(IAccessControls(spUSDTPAU_almProxy).getRoleAdmin(DEFAULT_ADMIN_ROLE),       DEFAULT_ADMIN_ROLE);
-        assertEq(IAccessControls(spUSDTPAU_rateLimits).getRoleAdmin(DEFAULT_ADMIN_ROLE),     DEFAULT_ADMIN_ROLE);
+        assertEq(IAccessControls(spUSDTPAU_accessControls).getRoleAdmin(ALLOCATOR_ROLE),     DEFAULT_ADMIN_ROLE);
+
+        assertEq(IAccessControls(spUSDTPAU_almProxy).getRoleAdmin(DEFAULT_ADMIN_ROLE), DEFAULT_ADMIN_ROLE);
+        assertEq(IAccessControls(spUSDTPAU_almProxy).getRoleAdmin(CONTROLLER_ROLE),    DEFAULT_ADMIN_ROLE);
+
+        assertEq(IAccessControls(spUSDTPAU_rateLimits).getRoleAdmin(DEFAULT_ADMIN_ROLE), DEFAULT_ADMIN_ROLE);
+        assertEq(IAccessControls(spUSDTPAU_rateLimits).getRoleAdmin(CONTROLLER_ROLE),    DEFAULT_ADMIN_ROLE);
     }
 
     function test_spUSDTPAU_integrations() external view {
@@ -539,8 +547,8 @@ contract EthereumSparkSpUSDTPayloadTest_SpUSDTPAU is EthereumSparkSpUSDTPayloadT
             uint256(200_000_000e6) / 1 days
         );
 
-        _assertRateLimit(spUSDTPAU_rateLimits, _layerZeroKey(LZ_PEER_ARBITRUM, LZ_EID_ARBITRUM), 5_000_000e6, 289_351_851);
-        _assertRateLimit(spUSDTPAU_rateLimits, _layerZeroKey(LZ_PEER_XLAYER, LZ_EID_XLAYER),     5_000_000e6, 289_351_851);
+        _assertRateLimit(spUSDTPAU_rateLimits, _layerZeroKey(LZ_PEER_ARBITRUM, LZ_EID_ARBITRUM), 5_000_000e6, uint256(25_000_000e6) / 1 days);
+        _assertRateLimit(spUSDTPAU_rateLimits, _layerZeroKey(LZ_PEER_XLAYER, LZ_EID_XLAYER),     5_000_000e6, uint256(25_000_000e6) / 1 days);
 
         ISwapAssetFacet swapAssetFacet = ISwapAssetFacet(Ethereum.SWAP_ASSET_FACET);
 
