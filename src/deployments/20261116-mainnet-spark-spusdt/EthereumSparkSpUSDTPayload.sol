@@ -223,8 +223,8 @@ contract EthereumSparkSpUSDTPayload {
                 _report.spUSDTPAU_controller,
                 Ethereum.USDT
             ),
-            100_000_000e18,
-            uint256(500_000_000e18) / 1 days
+            10_000_000e18,
+            uint256(200_000_000e18) / 1 days
         );
         rateLimits.setRateLimitData(
             ISwapAssetFacet(Ethereum.SWAP_ASSET_FACET).getInitiateSwapRateLimitKey(
@@ -233,8 +233,8 @@ contract EthereumSparkSpUSDTPayload {
                 _report.spUSDTPAU_controller,
                 Ethereum.USDS
             ),
-            100_000_000e6,
-            uint256(500_000_000e6) / 1 days
+            10_000_000e6,
+            uint256(200_000_000e6) / 1 days
         );
     }
 
@@ -260,20 +260,34 @@ contract EthereumSparkSpUSDTPayload {
         controller.updateIntegrations(integrationIds);
 
         // ERC4626 rate limits configuration
-        rateLimits.setUnlimitedRateLimitData(controller.erc4626_getDepositRateLimitKey(Ethereum.SUSDS, Ethereum.USDS));
-        rateLimits.setUnlimitedRateLimitData(controller.erc4626_getWithdrawRateLimitKey(Ethereum.SUSDS));
+        rateLimits.setRateLimitData(
+            controller.erc4626_getDepositRateLimitKey(Ethereum.SUSDS, Ethereum.USDS),
+            50_000_000e18,
+            uint256(50_000_000e18) / 1 days
+        );
+        rateLimits.setRateLimitData(
+            controller.erc4626_getWithdrawRateLimitKey(Ethereum.SUSDS),
+            50_000_000e18,
+            uint256(200_000_000e18) / 1 days
+        );
 
         // Set max exchange rate
         controller.erc4626_setMaxExchangeRate(Ethereum.SUSDS, 1, 1e40);
 
         // SparkVault rate limits configuration
 
-        rateLimits.setUnlimitedRateLimitData(controller.sparkVault_getTakeRateLimitKey(Ethereum.SPARK_VAULT_V2_SPUSDT));
+        rateLimits.setRateLimitData(
+            controller.sparkVault_getTakeRateLimitKey(Ethereum.SPARK_VAULT_V2_SPUSDT),
+            10_000_000e6,
+            uint256(200_000_000e6) / 1 days
+        );
 
         // TransferAsset rate limits configuration
 
-        rateLimits.setUnlimitedRateLimitData(
-            controller.transferAsset_getTransferRateLimitKey(Ethereum.USDT, Ethereum.SPARK_VAULT_V2_SPUSDT)
+        rateLimits.setRateLimitData(
+            controller.transferAsset_getTransferRateLimitKey(Ethereum.USDT, Ethereum.SPARK_VAULT_V2_SPUSDT),
+            10_000_000e6,
+            uint256(200_000_000e6) / 1 days
         );
 
         // LayerZero rate limits
@@ -285,7 +299,7 @@ contract EthereumSparkSpUSDTPayload {
                 Ethereum.USDT
             ),
             5_000_000e6,
-            uint256(50_000_000e6) / 1 days
+            uint256(25_000_000e6) / 1 days
         );
         rateLimits.setRateLimitData(
             ILayerZeroFacet(Ethereum.LAYERZERO_FACET).getTransferRateLimitKey(
@@ -295,19 +309,19 @@ contract EthereumSparkSpUSDTPayload {
                 Ethereum.USDT
             ),
             5_000_000e6,
-            uint256(100_000_000e6) / 1 days
+            uint256(25_000_000e6) / 1 days
         );
 
         // SwapAsset complete swap rate limits
         rateLimits.setRateLimitData(
             ISwapAssetFacet(Ethereum.SWAP_ASSET_FACET).getCompleteSwapRateLimitKey(Ethereum.USDT, Ethereum.ALM_PROXY, Ethereum.USDS),
-            100_000_000e6,
-            uint256(1_000_000_000e6) / 1 days
+            10_000_000e6,
+            uint256(200_000_000e6) / 1 days
         );
         rateLimits.setRateLimitData(
             ISwapAssetFacet(Ethereum.SWAP_ASSET_FACET).getCompleteSwapRateLimitKey(Ethereum.USDS, Ethereum.ALM_PROXY, Ethereum.USDT),
-            100_000_000e18,
-            uint256(1_000_000_000e18) / 1 days
+            10_000_000e18,
+            uint256(200_000_000e18) / 1 days
         );
     }
 

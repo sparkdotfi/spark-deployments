@@ -220,15 +220,15 @@ abstract contract ArbitrumSparkSpUSDTPayloadTestBase is Test {
         }
     }
 
-    function _assertUnlimitedRateLimit(address rateLimits, bytes32 key) internal view {
+    function _assertRateLimit(address rateLimits, bytes32 key, uint256 maxAmount, uint256 slope) internal view {
         IRateLimits.RateLimitData memory data = IRateLimits(rateLimits).getRateLimitData(key);
 
-        assertEq(data.maxAmount,   type(uint256).max);
-        assertEq(data.slope,       0);
-        assertEq(data.lastAmount,  type(uint256).max);
+        assertEq(data.maxAmount,   maxAmount);
+        assertEq(data.slope,       slope);
+        assertEq(data.lastAmount,  maxAmount);
         assertEq(data.lastUpdated, block.timestamp);
 
-        assertEq(IRateLimits(rateLimits).getCurrentRateLimit(key), type(uint256).max);
+        assertEq(IRateLimits(rateLimits).getCurrentRateLimit(key), maxAmount);
     }
 
     function _assertOnlyMember(address target, bytes32 role, address account) internal view {
@@ -381,19 +381,25 @@ contract ArbitrumSparkSpUSDTPayloadTest_SpUSDTPAU is ArbitrumSparkSpUSDTPayloadT
     }
 
     function test_spUSDTPAU_rateLimits() external view {
-        _assertUnlimitedRateLimit(
+        _assertRateLimit(
             spUSDTPAU_rateLimits,
-            ISparkVaultController(spUSDTPAU_controller).sparkVault_getTakeRateLimitKey(SPUSDT)
+            ISparkVaultController(spUSDTPAU_controller).sparkVault_getTakeRateLimitKey(SPUSDT),
+            10_000_000e6,
+            uint256(200_000_000e6) / 1 days
         );
-        _assertUnlimitedRateLimit(
+        _assertRateLimit(
             spUSDTPAU_rateLimits,
-            ITransferAssetController(spUSDTPAU_controller).transferAsset_getTransferRateLimitKey(USDT0, SPUSDT)
+            ITransferAssetController(spUSDTPAU_controller).transferAsset_getTransferRateLimitKey(USDT0, SPUSDT),
+            10_000_000e6,
+            uint256(200_000_000e6) / 1 days
         );
-        _assertUnlimitedRateLimit(
+        _assertRateLimit(
             spUSDTPAU_rateLimits,
             ILayerZeroController(spUSDTPAU_controller).layerZero_getTransferRateLimitKey(
                 USDT_OFT, PEER, LZ_ETHEREUM_EID, USDT0
-            )
+            ),
+            5_000_000e6,
+            uint256(25_000_000e6) / 1 days
         );
     }
 
@@ -479,8 +485,8 @@ contract ArbitrumSparkSpUSDTPayloadTest_E2E is ArbitrumSparkSpUSDTPayloadTestBas
         assertEq(usdt0.balanceOf(spUSDTPAU_almProxy), 0);
         assertEq(usdt0.balanceOf(SPUSDT),             vaultBalance + 1_000_000e6);
 
-        // Unlimited rate limits are not consumed.
-        assertEq(IRateLimits(spUSDTPAU_rateLimits).getCurrentRateLimit(transferKey), type(uint256).max);
+        // The rate limit is consumed by the transferred amount.
+        assertEq(IRateLimits(spUSDTPAU_rateLimits).getCurrentRateLimit(transferKey), 10_000_000e6 - 1_000_000e6);
     }
 
     function test_e2e_planner_sparkVaultTake() external {
@@ -512,8 +518,8 @@ contract ArbitrumSparkSpUSDTPayloadTest_E2E is ArbitrumSparkSpUSDTPayloadTestBas
         assertEq(spUSDT.totalAssets(), totalAssets);
         assertEq(spUSDT.totalSupply(), totalSupply);
 
-        // Unlimited rate limits are not consumed.
-        assertEq(IRateLimits(spUSDTPAU_rateLimits).getCurrentRateLimit(takeKey), type(uint256).max);
+        // The rate limit is consumed by the taken amount.
+        assertEq(IRateLimits(spUSDTPAU_rateLimits).getCurrentRateLimit(takeKey), 10_000_000e6 - 1_000_000e6);
     }
 
     function test_e2e_planner_layerZeroTransferToEthereum() external {
@@ -563,8 +569,8 @@ contract ArbitrumSparkSpUSDTPayloadTest_E2E is ArbitrumSparkSpUSDTPayloadTestBas
         assertEq(spUSDTPAU_controller.balance, 0);
         assertEq(spUSDTPAU_almProxy.balance,   1 ether);
 
-        // Unlimited rate limits are not consumed.
-        assertEq(IRateLimits(spUSDTPAU_rateLimits).getCurrentRateLimit(transferKey), type(uint256).max);
+        // The rate limit is consumed by the bridged amount.
+        assertEq(IRateLimits(spUSDTPAU_rateLimits).getCurrentRateLimit(transferKey), 5_000_000e6 - 1_000_000e6);
     }
 
     /**********************************************************************************************/

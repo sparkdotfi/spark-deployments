@@ -268,17 +268,6 @@ abstract contract EthereumSparkSpUSDTPayloadTestBase is Test {
         }
     }
 
-    function _assertUnlimitedRateLimit(address rateLimits, bytes32 key) internal view {
-        IRateLimits.RateLimitData memory data = IRateLimits(rateLimits).getRateLimitData(key);
-
-        assertEq(data.maxAmount,   type(uint256).max);
-        assertEq(data.slope,       0);
-        assertEq(data.lastAmount,  type(uint256).max);
-        assertEq(data.lastUpdated, block.timestamp);
-
-        assertEq(IRateLimits(rateLimits).getCurrentRateLimit(key), type(uint256).max);
-    }
-
     function _assertRateLimit(address rateLimits, bytes32 key, uint256 maxAmount, uint256 slope) internal view {
         IRateLimits.RateLimitData memory data = IRateLimits(rateLimits).getRateLimitData(key);
 
@@ -474,14 +463,14 @@ contract EthereumSparkSpUSDTPayloadTest_SLLPAU is EthereumSparkSpUSDTPayloadTest
         _assertRateLimit(
             sllPAU_rateLimits,
             swapAssetFacet.getInitiateSwapRateLimitKey(Ethereum.USDS, spUSDTPAU_almProxy, spUSDTPAU_controller, Ethereum.USDT),
-            100_000_000e18,
-            uint256(500_000_000e18) / 1 days
+            10_000_000e18,
+            uint256(200_000_000e18) / 1 days
         );
         _assertRateLimit(
             sllPAU_rateLimits,
             swapAssetFacet.getInitiateSwapRateLimitKey(Ethereum.USDT, spUSDTPAU_almProxy, spUSDTPAU_controller, Ethereum.USDS),
-            100_000_000e6,
-            uint256(500_000_000e6) / 1 days
+            10_000_000e6,
+            uint256(200_000_000e6) / 1 days
         );
     }
 
@@ -518,40 +507,48 @@ contract EthereumSparkSpUSDTPayloadTest_SpUSDTPAU is EthereumSparkSpUSDTPayloadT
     }
 
     function test_spUSDTPAU_rateLimits() external view {
-        _assertUnlimitedRateLimit(
+        _assertRateLimit(
             spUSDTPAU_rateLimits,
-            IERC4626Controller(spUSDTPAU_controller).erc4626_getDepositRateLimitKey(Ethereum.SUSDS, Ethereum.USDS)
+            IERC4626Controller(spUSDTPAU_controller).erc4626_getDepositRateLimitKey(Ethereum.SUSDS, Ethereum.USDS),
+            50_000_000e18,
+            uint256(50_000_000e18) / 1 days
         );
-        _assertUnlimitedRateLimit(
+        _assertRateLimit(
             spUSDTPAU_rateLimits,
-            IERC4626Controller(spUSDTPAU_controller).erc4626_getWithdrawRateLimitKey(Ethereum.SUSDS)
+            IERC4626Controller(spUSDTPAU_controller).erc4626_getWithdrawRateLimitKey(Ethereum.SUSDS),
+            50_000_000e18,
+            uint256(200_000_000e18) / 1 days
         );
-        _assertUnlimitedRateLimit(
+        _assertRateLimit(
             spUSDTPAU_rateLimits,
-            ISparkVaultController(spUSDTPAU_controller).sparkVault_getTakeRateLimitKey(SPUSDT)
+            ISparkVaultController(spUSDTPAU_controller).sparkVault_getTakeRateLimitKey(SPUSDT),
+            10_000_000e6,
+            uint256(200_000_000e6) / 1 days
         );
-        _assertUnlimitedRateLimit(
+        _assertRateLimit(
             spUSDTPAU_rateLimits,
-            ITransferAssetController(spUSDTPAU_controller).transferAsset_getTransferRateLimitKey(Ethereum.USDT, SPUSDT)
+            ITransferAssetController(spUSDTPAU_controller).transferAsset_getTransferRateLimitKey(Ethereum.USDT, SPUSDT),
+            10_000_000e6,
+            uint256(200_000_000e6) / 1 days
         );
 
-        _assertRateLimit(spUSDTPAU_rateLimits, _layerZeroKey(LZ_PEER_ARBITRUM, LZ_EID_ARBITRUM), 5_000_000e6, 578_703_703);
-        _assertRateLimit(spUSDTPAU_rateLimits, _layerZeroKey(LZ_PEER_XLAYER, LZ_EID_XLAYER),     5_000_000e6, 1_157_407_407);
+        _assertRateLimit(spUSDTPAU_rateLimits, _layerZeroKey(LZ_PEER_ARBITRUM, LZ_EID_ARBITRUM), 5_000_000e6, 289_351_851);
+        _assertRateLimit(spUSDTPAU_rateLimits, _layerZeroKey(LZ_PEER_XLAYER, LZ_EID_XLAYER),     5_000_000e6, 289_351_851);
 
         ISwapAssetFacet swapAssetFacet = ISwapAssetFacet(Ethereum.SWAP_ASSET_FACET);
 
         _assertRateLimit(
             spUSDTPAU_rateLimits,
             swapAssetFacet.getCompleteSwapRateLimitKey(Ethereum.USDT, Ethereum.ALM_PROXY, Ethereum.USDS),
-            100_000_000e6,
-            uint256(1_000_000_000e6) / 1 days
+            10_000_000e6,
+            uint256(200_000_000e6) / 1 days
         );
 
         _assertRateLimit(
             spUSDTPAU_rateLimits,
             swapAssetFacet.getCompleteSwapRateLimitKey(Ethereum.USDS, Ethereum.ALM_PROXY, Ethereum.USDT),
-            100_000_000e18,
-            uint256(1_000_000_000e18) / 1 days
+            10_000_000e18,
+            uint256(200_000_000e18) / 1 days
         );
     }
 
@@ -609,6 +606,9 @@ contract EthereumSparkSpUSDTPayloadTest_E2E is EthereumSparkSpUSDTPayloadTestBas
             (spUSDTPAU_controller, transferCall)
         );
 
+        bytes32 transferKey = ITransferAssetController(spUSDTPAU_controller)
+            .transferAsset_getTransferRateLimitKey(Ethereum.USDT, SPUSDT);
+
         uint256 vaultBalance = IERC20Like(Ethereum.USDT).balanceOf(SPUSDT);
 
         assertEq(IERC20Like(Ethereum.USDT).balanceOf(spUSDTPAU_almProxy), 1_000_000e6);
@@ -618,6 +618,8 @@ contract EthereumSparkSpUSDTPayloadTest_E2E is EthereumSparkSpUSDTPayloadTestBas
 
         assertEq(IERC20Like(Ethereum.USDT).balanceOf(spUSDTPAU_almProxy), 0);
         assertEq(IERC20Like(Ethereum.USDT).balanceOf(SPUSDT),             vaultBalance + 1_000_000e6);
+
+        assertEq(IRateLimits(spUSDTPAU_rateLimits).getCurrentRateLimit(transferKey), 10_000_000e6 - 1_000_000e6);
     }
 
     function test_e2e_planner_erc4626DepositWithdrawRedeemCycle() external {
@@ -693,9 +695,8 @@ contract EthereumSparkSpUSDTPayloadTest_E2E is EthereumSparkSpUSDTPayloadTestBas
         // Same block, so no yield accrues and only rounding is lost.
         assertEq(usds.balanceOf(spUSDTPAU_almProxy), 1_000_000e18 - 2);
 
-        // Unlimited rate limits are not consumed.
-        assertEq(IRateLimits(spUSDTPAU_rateLimits).getCurrentRateLimit(depositKey),  type(uint256).max);
-        assertEq(IRateLimits(spUSDTPAU_rateLimits).getCurrentRateLimit(withdrawKey), type(uint256).max);
+        assertEq(IRateLimits(spUSDTPAU_rateLimits).getCurrentRateLimit(depositKey),  50_000_000e18 - 1_000_000e18 + 400_000e18 + assets);
+        assertEq(IRateLimits(spUSDTPAU_rateLimits).getCurrentRateLimit(withdrawKey), 50_000_000e18 - 400_000e18 - assets);
     }
 
     function test_e2e_planner_sparkVaultTake() external {
@@ -727,8 +728,8 @@ contract EthereumSparkSpUSDTPayloadTest_E2E is EthereumSparkSpUSDTPayloadTestBas
         assertEq(spUSDT.totalAssets(), totalAssets);
         assertEq(spUSDT.totalSupply(), totalSupply);
 
-        // Unlimited rate limits are not consumed.
-        assertEq(IRateLimits(spUSDTPAU_rateLimits).getCurrentRateLimit(takeKey), type(uint256).max);
+        // The rate limit is consumed by the taken amount.
+        assertEq(IRateLimits(spUSDTPAU_rateLimits).getCurrentRateLimit(takeKey), 10_000_000e6 - 1_000_000e6);
     }
 
     /**********************************************************************************************/
