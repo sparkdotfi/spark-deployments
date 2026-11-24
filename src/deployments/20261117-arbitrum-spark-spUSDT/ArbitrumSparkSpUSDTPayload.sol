@@ -84,9 +84,9 @@ contract ArbitrumSparkSpUSDTPayload {
     struct Report {
         address plannerAgent;
         address sparkAgent;
-        address spUSDTPAU_controller;
         address spUSDTPAU_accessControls;
         address spUSDTPAU_almProxy;
+        address spUSDTPAU_controller;
         address spUSDTPAU_rateLimits;
     }
 
