@@ -139,8 +139,8 @@ contract ArbitrumSparkSpUSDTPayload {
     /**********************************************************************************************/
 
     function _configureAdministeredAgents() internal {
-        IAdministeredAgent plannerAgent     = IAdministeredAgent(_report.plannerAgent);
-        IAdministeredAgent sparkAgent = IAdministeredAgent(_report.sparkAgent);
+        IAdministeredAgent plannerAgent = IAdministeredAgent(_report.plannerAgent);
+        IAdministeredAgent sparkAgent   = IAdministeredAgent(_report.sparkAgent);
 
         plannerAgent.addAdmin(Arbitrum.SPARK_EXECUTOR);
         plannerAgent.addActor(Arbitrum.PLANNER_WALLET);
