@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.34;
 
+import { Arbitrum as SkyArbitrum } from "../../../lib/sky-pau-registry/src/Arbitrum.sol";
+
 import { Arbitrum } from "../../../lib/spark-address-registry/src/Arbitrum.sol";
 import { Ethereum } from "../../../lib/spark-address-registry/src/Ethereum.sol";
 
@@ -73,7 +75,7 @@ contract ArbitrumSparkSpUSDTPayload {
 
     bytes32 internal constant PEER = bytes32(uint256(uint160(Ethereum.USDT_OFT)));
 
-    bytes32 internal constant ETHEREUM_SPUSDT_ALM_PROXY = bytes32(uint256(uint160(0x9174264F5E0dFDa8C7a096E11a740b7b613Cf7C4)));
+    bytes32 internal constant ETHEREUM_SPUSDT_ALM_PROXY = bytes32(uint256(uint160(0x982e90885e21cfDE0557A96bac1a65Fdafc0D29b)));
 
     /**********************************************************************************************/
     /*** Deployed contracts                                                                     ***/
@@ -99,7 +101,7 @@ contract ArbitrumSparkSpUSDTPayload {
 
         // Step 1: Deploy the two AdministeredAgents with the payload as temporary admin
 
-        IAdministeredAgentFactory administeredAgentFactory = IAdministeredAgentFactory(Arbitrum.SPARK_ADMINISTERED_AGENT_FACTORY);
+        IAdministeredAgentFactory administeredAgentFactory = IAdministeredAgentFactory(SkyArbitrum.ADMINISTERED_AGENT_FACTORY);
 
         _report.plannerAgent = administeredAgentFactory.deploy(address(this), PLANNER_ADMINISTERED_AGENT_SALT);
         _report.sparkAgent   = administeredAgentFactory.deploy(address(this), SPARK_ADMINISTERED_AGENT_SALT);

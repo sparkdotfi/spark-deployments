@@ -114,7 +114,7 @@ contract EthereumSparkSpUSDTPayload {
 
         // Step 1: Deploy the three AdministeredAgents with the payload as temporary admin
 
-        IAdministeredAgentFactory administeredAgentFactory = IAdministeredAgentFactory(Ethereum.SPARK_ADMINISTERED_AGENT_FACTORY);
+        IAdministeredAgentFactory administeredAgentFactory = IAdministeredAgentFactory(SkyEthereum.ADMINISTERED_AGENT_FACTORY);
 
         _report.plannerAgent = administeredAgentFactory.deploy(address(this), PLANNER_ADMINISTERED_AGENT_SALT);
         _report.sparkAgent   = administeredAgentFactory.deploy(address(this), SPARK_ADMINISTERED_AGENT_SALT);

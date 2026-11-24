@@ -96,8 +96,8 @@ abstract contract E2ETestBase is Test {
     bytes32 internal constant ETH_PAYLOAD_SALT = keccak256("spark.eth.spUSDTPAUPayload");
     bytes32 internal constant ARB_PAYLOAD_SALT = keccak256("spark.arb.spUSDTPAUPayload");
 
-    address internal constant EXPECTED_ETH_SPUSDT_PAYLOAD = 0xC88BB7CdB6AE8045b197F44c6DfDf038b564CC38;
-    address internal constant EXPECTED_ARB_SPUSDT_PAYLOAD = 0x6Eb39C6c124033DcFe8Ce608C0565eE0c2dE3942;
+    address internal constant EXPECTED_ETH_SPUSDT_PAYLOAD = 0x6f84bCF414F3b9f31DF9d43bc7d5CFa00DeB3bFd;
+    address internal constant EXPECTED_ARB_SPUSDT_PAYLOAD = 0x4463bd30baDDa611C546F055CE1bF6F48C2a7f23;
 
     /**********************************************************************************************/
     /*** Domains and bridges                                                                    ***/

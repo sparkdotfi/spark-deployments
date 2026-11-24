@@ -101,7 +101,7 @@ abstract contract ArbitrumSparkSpUSDTPayloadTestBase is Test {
 
     bytes32 internal constant PEER = bytes32(uint256(uint160(Ethereum.USDT_OFT)));
 
-    bytes32 internal constant ETHEREUM_SPUSDT_ALM_PROXY = bytes32(uint256(uint160(0x9174264F5E0dFDa8C7a096E11a740b7b613Cf7C4)));
+    bytes32 internal constant ETHEREUM_SPUSDT_ALM_PROXY = bytes32(uint256(uint160(0x982e90885e21cfDE0557A96bac1a65Fdafc0D29b)));
 
     address internal deploymentPayload;
 
