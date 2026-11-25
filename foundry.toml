@@ -11,6 +11,9 @@ fs_permissions =[
     { access = "read-write", path = "./src/deployments/" }
 ]
 
+bytecode_hash = "none"
+cbor_metadata = false
+
 [rpc_endpoints]
 mainnet      = "${MAINNET_RPC_URL}"
 arbitrum_one = "${ARBITRUM_ONE_RPC_URL}"
