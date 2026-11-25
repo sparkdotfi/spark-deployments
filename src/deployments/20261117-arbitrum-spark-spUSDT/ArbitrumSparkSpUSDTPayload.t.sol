@@ -3,6 +3,8 @@ pragma solidity ^0.8.34;
 
 import { Test } from "../../../lib/forge-std/src/Test.sol";
 
+import { Arbitrum as SkyArbitrum } from "../../../lib/sky-pau-registry/src/Arbitrum.sol";
+
 import { Arbitrum } from "../../../lib/spark-address-registry/src/Arbitrum.sol";
 import { Ethereum } from "../../../lib/spark-address-registry/src/Ethereum.sol";
 
@@ -47,6 +49,12 @@ interface IAdministeredAgentLike {
     function getIsGrantor(address account) external view returns (bool);
 
     function getIsRevoker(address account) external view returns (bool);
+
+}
+
+interface IAdministeredAgentFactoryLike {
+
+    function isInstance(address instance) external view returns (bool);
 
 }
 
@@ -276,12 +284,17 @@ contract ArbitrumSparkSpUSDTPayloadTest_Payload is ArbitrumSparkSpUSDTPayloadTes
             }
         }
 
-        IPAUFactory factory = IPAUFactory(Arbitrum.SPARK_PAU_FACTORY);
+        IPAUFactory pauFactory = IPAUFactory(Arbitrum.SPARK_PAU_FACTORY);
 
-        assertEq(factory.isAccessControls(spUSDTPAU_accessControls), true);
-        assertEq(factory.isALMProxy(spUSDTPAU_almProxy),             true);
-        assertEq(factory.isController(spUSDTPAU_controller),         true);
-        assertEq(factory.isRateLimits(spUSDTPAU_rateLimits),         true);
+        assertEq(pauFactory.isAccessControls(spUSDTPAU_accessControls), true);
+        assertEq(pauFactory.isALMProxy(spUSDTPAU_almProxy),             true);
+        assertEq(pauFactory.isController(spUSDTPAU_controller),         true);
+        assertEq(pauFactory.isRateLimits(spUSDTPAU_rateLimits),         true);
+
+        IAdministeredAgentFactoryLike agentFactory = IAdministeredAgentFactoryLike(SkyArbitrum.ADMINISTERED_AGENT_FACTORY);
+
+        assertEq(agentFactory.isInstance(plannerAgent), true);
+        assertEq(agentFactory.isInstance(sparkAgent),   true);
     }
 
     function test_deploymentPayload_holdsNoRoles() external view {

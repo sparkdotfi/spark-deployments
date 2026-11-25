@@ -56,6 +56,12 @@ interface IAdministeredAgentLike {
 
 }
 
+interface IAdministeredAgentFactoryLike {
+
+    function isInstance(address instance) external view returns (bool);
+
+}
+
 interface IERC20Like {
 
     function allowance(address owner, address spender) external view returns (uint256);
@@ -360,6 +366,12 @@ contract EthereumSparkSpUSDTPayloadTest_Payload is EthereumSparkSpUSDTPayloadTes
         assertEq(skyFactory.isALMProxy(spUSDTPAU_almProxy),             false);
         assertEq(skyFactory.isController(spUSDTPAU_controller),         false);
         assertEq(skyFactory.isRateLimits(spUSDTPAU_rateLimits),         false);
+
+        IAdministeredAgentFactoryLike agentFactory = IAdministeredAgentFactoryLike(SkyEthereum.ADMINISTERED_AGENT_FACTORY);
+
+        assertEq(agentFactory.isInstance(plannerAgent), true);
+        assertEq(agentFactory.isInstance(sparkAgent),   true);
+        assertEq(agentFactory.isInstance(sllAgent),     true);
     }
 
     function test_deploymentPayload_holdsNoRoles() external view {
